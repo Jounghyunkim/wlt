@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest template for the Microsoft Store (scripts/build-msix.ps1 fills in {{VERSION}}).
+
+  Identity Name / Publisher and PublisherDisplayName come from
+  Partner Center → 제품 관리 → 제품 ID (Product identity); Store ID 9MXKWPH0PCN1.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="JohnnyStudio.WLT"
+    Publisher="CN=FF44B3F5-BADB-4BBA-9A7C-B4F6B3D0DFA2"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <!-- Must match the name reserved in Partner Center. -->
+    <DisplayName>WLT</DisplayName>
+    <PublisherDisplayName>JohnnyStudio</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="ko-KR" />
+  </Resources>
+
+  <Applications>
+    <Application Id="WLT" Executable="wlt.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="WLT"
+        Description="Lightweight SSH / local terminal for Windows"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Desktop (Win32) app: spawns shells via ConPTY, uses Credential Manager and the file system. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

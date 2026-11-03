@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko" data-title-ko="WLT Terminal 개인정보처리방침" data-title-en="WLT Terminal Privacy Policy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WLT Terminal Privacy Policy</title>
+  <meta name="description" content="Privacy policy for WLT Terminal by JohnnyStudio. The app collects no personal information.">
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="lang.js"></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="support.html"><img src="icon.png" alt="">WLT Terminal</a>
+    <nav class="links">
+      <a href="privacy.html" aria-current="page"><span data-l="ko">개인정보처리방침</span><span data-l="en">Privacy</span></a>
+      <a href="support.html"><span data-l="ko">지원</span><span data-l="en">Support</span></a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-set="ko">한국어</button>
+      <button type="button" data-set="en">English</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ───────────── 한국어 ───────────── -->
+<article data-l="ko" lang="ko">
+  <h1>WLT Terminal 개인정보처리방침</h1>
+  <p class="meta">시행일: 2026년 11월 4일 · 제공자: JohnnyStudio</p>
+
+  <p>JohnnyStudio(이하 "개발자")는 WLT Terminal(이하 "앱")을 사용하는 분의 개인정보를 소중히 여깁니다. 이 방침은 앱이 어떤 정보를 다루고, 어디에 저장하며, 어떻게 보호하는지 설명합니다.</p>
+
+  <h2>1. 수집하는 개인정보</h2>
+  <div class="callout"><strong>개발자는 사용자의 개인정보를 수집하지 않습니다.</strong></div>
+  <ul>
+    <li>앱에는 회원 가입이나 로그인 기능이 없습니다.</li>
+    <li>앱은 사용 통계, 분석(애널리틱스), 오류 보고, 광고, 추적 기능을 포함하지 않습니다.</li>
+    <li>앱은 개발자가 운영하는 서버나 제3자 서버로 어떤 정보도 전송하지 않습니다.</li>
+  </ul>
+
+  <h2>2. 사용자의 PC에만 저장되는 정보</h2>
+  <p>앱의 기능을 제공하기 위해 아래 정보가 <strong>사용자의 PC에만</strong> 저장됩니다. 이 정보는 개발자에게 전달되지 않습니다.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>정보</th><th>용도</th><th>저장 위치</th></tr></thead>
+      <tbody>
+        <tr><td>SSH 세션 정보(세션 이름, 호스트 주소, 포트, 사용자 이름, 개인 키 파일 경로, 포트 포워딩 설정)</td><td>저장된 서버에 다시 접속</td><td>앱 데이터 폴더</td></tr>
+        <tr><td>SSH 비밀번호, 개인 키 암호 (사용자가 저장을 선택한 경우)</td><td>자동 로그인</td><td>Windows 자격 증명 관리자 (항목 이름 <code>WLT/ssh/...</code>)</td></tr>
+        <tr><td>서버 호스트 키 (known_hosts)</td><td>접속하는 서버가 바뀌지 않았는지 확인</td><td>앱 데이터 폴더</td></tr>
+        <tr><td>앱 설정 (테마, 글꼴, 기본 셸 등)</td><td>사용자 환경 유지</td><td>앱 데이터 폴더</td></tr>
+        <tr><td>세션 히스토리 (열려 있던 탭, 작업 폴더, 터미널 화면 내용)</td><td>다음 실행 때 이전 작업으로 복귀</td><td>앱 데이터 폴더</td></tr>
+        <tr><td>세션 로그 (사용자가 로그 저장을 켠 경우에만)</td><td>터미널 입출력 기록</td><td>사용자가 지정한 폴더 (기본값: <code>문서\WLT Logs</code>)</td></tr>
+        <tr><td>서버 파일 편집용 임시 사본</td><td>서버 파일을 로컬에서 편집</td><td>Windows 임시 폴더</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>세션 히스토리와 세션 로그에는 터미널에 표시되거나 입력한 내용이 들어갈 수 있습니다. 민감한 정보를 다루는 경우 로그 저장을 끄거나 히스토리 항목을 삭제해 주세요.</p>
+
+  <h2>3. 네트워크 통신</h2>
+  <p>앱은 <strong>사용자가 직접 접속을 요청한 서버</strong>와만 통신합니다.</p>
+  <ul>
+    <li>SSH 접속, SFTP 파일 전송, 포트 포워딩은 사용자가 지정한 서버와 직접 연결되며, 개발자의 서버를 거치지 않습니다.</li>
+    <li>이 통신은 SSH 프로토콜로 암호화됩니다.</li>
+    <li>접속한 서버가 정보를 어떻게 처리하는지는 해당 서버 운영자의 정책을 따릅니다.</li>
+  </ul>
+  <p>앱 안에서 실행하는 다른 프로그램(예: 터미널에서 실행하는 명령어)은 각 프로그램의 개인정보처리방침을 따릅니다.</p>
+
+  <h2>4. 제3자 제공 및 처리 위탁</h2>
+  <p>개발자는 사용자의 정보를 수집하지 않으므로, 제3자에게 제공하거나 처리를 위탁하는 정보가 없습니다.</p>
+
+  <h2>5. 정보의 보관 및 삭제</h2>
+  <p>모든 정보는 사용자의 PC에 있으며 사용자가 직접 관리합니다.</p>
+  <ul>
+    <li>저장된 세션, 세션 히스토리는 앱 안에서 삭제할 수 있습니다.</li>
+    <li>저장된 비밀번호는 앱에서 세션을 삭제하거나, Windows 제어판의 <strong>자격 증명 관리자</strong>에서 <code>WLT/ssh/</code>로 시작하는 항목을 삭제하면 지워집니다.</li>
+    <li>앱을 제거하고 앱 데이터 폴더와 로그 폴더를 삭제하면 모든 정보가 지워집니다.</li>
+  </ul>
+
+  <h2>6. 정보 보호</h2>
+  <ul>
+    <li>비밀번호와 키 암호는 앱의 설정 파일에 저장하지 않고 Windows 자격 증명 관리자에 저장합니다. 저장된 비밀번호는 화면에 다시 표시되지 않습니다.</li>
+    <li>처음 접속하는 서버의 호스트 키를 기록해 두고, 이후 키가 바뀌면 접속 전에 경고합니다.</li>
+  </ul>
+
+  <h2>7. 아동의 개인정보</h2>
+  <p>앱은 아동을 대상으로 하지 않으며, 아동을 포함한 누구의 개인정보도 수집하지 않습니다.</p>
+
+  <h2>8. 방침의 변경</h2>
+  <p>이 방침이 바뀌면 이 페이지에 변경 내용과 새 시행일을 게시합니다.</p>
+
+  <h2>9. 문의</h2>
+  <p>개인정보와 관련한 문의는 아래로 연락해 주세요.</p>
+  <ul>
+    <li>제공자: JohnnyStudio</li>
+    <li>이메일: <a href="mailto:gadians2001@gmail.com">gadians2001@gmail.com</a></li>
+  </ul>
+</article>
+
+<!-- ───────────── English ───────────── -->
+<article data-l="en" lang="en">
+  <h1>WLT Terminal Privacy Policy</h1>
+  <p class="meta">Effective date: November 4, 2026 · Publisher: JohnnyStudio</p>
+
+  <p>JohnnyStudio respects the privacy of everyone who uses WLT Terminal (the "app"). This policy explains what information the app handles, where it is stored, and how it is protected.</p>
+
+  <h2>1. Information we collect</h2>
+  <div class="callout"><strong>JohnnyStudio does not collect any personal information.</strong></div>
+  <ul>
+    <li>The app has no account sign-up or sign-in.</li>
+    <li>The app contains no usage statistics, analytics, crash reporting, advertising, or tracking.</li>
+    <li>The app does not send any information to servers operated by JohnnyStudio or any third party.</li>
+  </ul>
+
+  <h2>2. Information stored only on your PC</h2>
+  <p>To provide its features, the app stores the following <strong>only on your PC</strong>. None of it is sent to JohnnyStudio.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Information</th><th>Purpose</th><th>Location</th></tr></thead>
+      <tbody>
+        <tr><td>SSH session details (name, host, port, user name, private key file path, port forwarding settings)</td><td>Reconnect to saved servers</td><td>App data folder</td></tr>
+        <tr><td>SSH passwords and key passphrases (only if you choose to save them)</td><td>Automatic sign-in</td><td>Windows Credential Manager (entries named <code>WLT/ssh/...</code>)</td></tr>
+        <tr><td>Server host keys (known_hosts)</td><td>Verify the server has not changed</td><td>App data folder</td></tr>
+        <tr><td>App settings (theme, font, default shell, etc.)</td><td>Keep your preferences</td><td>App data folder</td></tr>
+        <tr><td>Session history (open tabs, working folders, terminal screen contents)</td><td>Restore your previous work on next launch</td><td>App data folder</td></tr>
+        <tr><td>Session logs (only if you turn logging on)</td><td>Record terminal input/output</td><td>Folder you choose (default: <code>Documents\WLT Logs</code>)</td></tr>
+        <tr><td>Temporary copies of remote files being edited</td><td>Edit server files locally</td><td>Windows temp folder</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Session history and logs may contain whatever was shown or typed in the terminal. If you work with sensitive information, turn logging off or delete history entries.</p>
+
+  <h2>3. Network communication</h2>
+  <p>The app communicates <strong>only with servers you choose to connect to</strong>.</p>
+  <ul>
+    <li>SSH, SFTP file transfer, and port forwarding connect directly to the server you specify and never pass through JohnnyStudio's servers.</li>
+    <li>This traffic is encrypted by the SSH protocol.</li>
+    <li>How a server handles your information is governed by that server operator's policies.</li>
+  </ul>
+  <p>Programs you run inside the app (for example, commands you run in the terminal) are governed by their own privacy policies.</p>
+
+  <h2>4. Sharing with third parties</h2>
+  <p>Because we collect no information, we do not share or entrust any information to third parties.</p>
+
+  <h2>5. Retention and deletion</h2>
+  <p>All information stays on your PC under your control.</p>
+  <ul>
+    <li>Saved sessions and session history can be deleted inside the app.</li>
+    <li>Saved passwords are removed when you delete the session in the app, or by deleting entries starting with <code>WLT/ssh/</code> in Windows <strong>Credential Manager</strong>.</li>
+    <li>Uninstalling the app and deleting the app data and log folders removes all information.</li>
+  </ul>
+
+  <h2>6. Security</h2>
+  <ul>
+    <li>Passwords and key passphrases are stored in Windows Credential Manager, not in the app's settings files, and are never displayed again.</li>
+    <li>The app records each server's host key on first connection and warns you before connecting if the key changes.</li>
+  </ul>
+
+  <h2>7. Children's privacy</h2>
+  <p>The app is not directed at children and does not collect personal information from anyone, including children.</p>
+
+  <h2>8. Changes to this policy</h2>
+  <p>If this policy changes, we will post the updated policy with a new effective date on this page.</p>
+
+  <h2>9. Contact</h2>
+  <ul>
+    <li>Publisher: JohnnyStudio</li>
+    <li>Email: <a href="mailto:gadians2001@gmail.com">gadians2001@gmail.com</a></li>
+  </ul>
+</article>
+</main>
+
+<footer class="site">
+  © 2026 JohnnyStudio ·
+  <a href="support.html"><span data-l="ko">지원</span><span data-l="en">Support</span></a> ·
+  <a href="mailto:gadians2001@gmail.com">gadians2001@gmail.com</a>
+</footer>
+</body>
+</html>
