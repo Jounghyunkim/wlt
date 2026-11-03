@@ -1,0 +1,334 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  ClipboardCopy,
+  Columns2,
+  Copy,
+  Lock,
+  LockOpen,
+  PanelLeft,
+  Pencil,
+  Plus,
+  RotateCw,
+  Rows2,
+  Monitor,
+  Server,
+  SquareTerminal,
+  TextSelect,
+  X,
+  XSquare,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Hint } from "@/components/ui/tooltip";
+import { beginPointerDrag, registerDrop, useDnd } from "@/lib/dnd";
+import { terminalRegistry } from "@/lib/terminalRegistry";
+import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/store/settingsStore";
+import { useTabStore, type TabStatus } from "@/store/tabStore";
+
+const STATUS_COLOR: Record<TabStatus, string> = {
+  connecting: "bg-warning animate-pulse",
+  connected: "bg-success",
+  closed: "bg-muted-foreground",
+  error: "bg-destructive",
+};
+
+/**
+ * Where a tab dropped on tab `el` goes: before it (left half) or before the
+ * next tab (right half; "end" after the last one).
+ */
+function insertionPoint(el: HTMLElement, x: number): string {
+  const rect = el.getBoundingClientRect();
+  if (x <= rect.left + rect.width / 2) return el.dataset.tabId!;
+  return el.dataset.nextTabId || "end";
+}
+
+registerDrop("tab", (payload, el, x) => {
+  if (payload.kind !== "tab") return;
+  const before = insertionPoint(el, x);
+  useTabStore.getState().moveTab(payload.tabId, el.dataset.groupId!, before === "end" ? undefined : before);
+});
+
+registerDrop("tabbar", (payload, el) => {
+  if (payload.kind === "tab") useTabStore.getState().moveTab(payload.tabId, el.dataset.groupId!);
+});
+
+interface TabBarProps {
+  groupId: string;
+  /** Only the top-left group carries the sidebar toggle. */
+  showSidebarToggle: boolean;
+  onNewTab: () => void;
+  onSplitRight: () => void;
+}
+
+export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: TabBarProps) {
+  const group = useTabStore((s) => s.groups[groupId]);
+  const allTabs = useTabStore((s) => s.tabs);
+  const focused = useTabStore((s) => s.focusedGroupId === groupId);
+  const draggingTabId = useDnd((s) => (s.payload?.kind === "tab" ? s.payload.tabId : null));
+  /** Drop indicator: insert before this tab id, or "end". */
+  const dropBefore = useDnd((s) => {
+    if (s.payload?.kind !== "tab" || s.over?.dataset.groupId !== groupId) return null;
+    if (s.over.dataset.drop === "tab") return insertionPoint(s.over, s.x);
+    return s.over.dataset.drop === "tabbar" ? "end" : null;
+  });
+  const setActiveTab = useTabStore((s) => s.setActiveTab);
+  const closeTab = useTabStore((s) => s.closeTab);
+  const toggleSidebar = useTabStore((s) => s.toggleSidebar);
+  const toggleLock = useTabStore((s) => s.toggleLock);
+  const renameTab = useTabStore((s) => s.renameTab);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+
+  if (!group) return null;
+  const tabs = group.tabIds.map((id) => allTabs.find((t) => t.id === id)).filter((t) => t !== undefined);
+
+  return (
+    <div className="bg-sidebar flex h-10 shrink-0 items-end border-b">
+      {showSidebarToggle && (
+        <Hint label="사이드바 (Ctrl+Shift+B)">
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-none" onClick={toggleSidebar}>
+            <PanelLeft />
+          </Button>
+        </Hint>
+      )}
+
+      <div
+        className="flex h-full min-w-0 flex-1 items-end overflow-x-auto [scrollbar-width:none]"
+        data-drop="tabbar"
+        data-group-id={groupId}
+      >
+        {tabs.map((tab, i) => {
+          const active = tab.id === group.activeTabId;
+          const Icon = tab.target.type === "ssh" ? Server : SquareTerminal;
+          const editing = editingTabId === tab.id;
+          return (
+            <TabMenu
+              key={tab.id}
+              tabId={tab.id}
+              locked={tab.locked}
+              canCloseOthers={tabs.some((t) => t.id !== tab.id && !t.locked)}
+              onRename={() => setEditingTabId(tab.id)}
+            >
+              <div
+                data-drop="tab"
+                data-tab-id={tab.id}
+                data-next-tab-id={tabs[i + 1]?.id ?? ""}
+                data-group-id={groupId}
+                onPointerDown={(e) => {
+                  if (editing) return;
+                  beginPointerDrag(e, () => ({ kind: "tab", tabId: tab.id, label: tab.title }));
+                }}
+                onMouseDown={(e) => {
+                  if (e.button === 0) setActiveTab(tab.id);
+                }}
+                onAuxClick={(e) => {
+                  if (e.button === 1) closeTab(tab.id);
+                }}
+                title={tab.title}
+                className={cn(
+                  "group relative flex h-9 max-w-52 min-w-32 shrink-0 cursor-default items-center gap-2 border-r px-3 text-sm",
+                  active
+                    ? "bg-background text-foreground"
+                    : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+                  draggingTabId === tab.id && "opacity-50",
+                )}
+              >
+                {active && (
+                  <span
+                    className={cn("absolute inset-x-0 top-0 h-0.5", focused ? "bg-primary" : "bg-muted-foreground/50")}
+                  />
+                )}
+                {dropBefore === tab.id && <DropMarker />}
+                <Icon className="size-3.5 shrink-0" />
+                {editing ? (
+                  <RenameInput
+                    initial={tab.title}
+                    onDone={(name) => {
+                      if (name !== null) renameTab(tab.id, name);
+                      setEditingTabId(null);
+                    }}
+                  />
+                ) : (
+                  <span className="min-w-0 flex-1 truncate" onDoubleClick={() => setEditingTabId(tab.id)}>
+                    {tab.title}
+                  </span>
+                )}
+                <span className={cn("size-2 shrink-0 rounded-full", STATUS_COLOR[tab.status])} />
+                {tab.locked ? (
+                  <button
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => toggleLock(tab.id)}
+                    className="hover:bg-accent text-warning -mr-1 rounded p-0.5"
+                    title="잠긴 탭 (클릭하여 잠금 해제)"
+                    aria-label="탭 잠금 해제"
+                  >
+                    <Lock className="size-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => closeTab(tab.id)}
+                    className={cn(
+                      "hover:bg-accent -mr-1 rounded p-0.5",
+                      active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                    )}
+                    aria-label="탭 닫기"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </TabMenu>
+          );
+        })}
+        <div className="relative flex h-full shrink-0 items-end">
+          {dropBefore === "end" && <DropMarker />}
+          <Hint label="새 로컬 터미널 (Ctrl+Shift+T)">
+            <Button variant="ghost" size="icon" className="mb-0.5 ml-1 size-8 shrink-0" onClick={onNewTab}>
+              <Plus />
+            </Button>
+          </Hint>
+        </div>
+      </div>
+
+      <Hint label="오른쪽에 새 터미널 분할 (Ctrl+Shift+\)">
+        <Button variant="ghost" size="icon" className="mr-1 mb-0.5 size-8 shrink-0" onClick={onSplitRight}>
+          <Columns2 />
+        </Button>
+      </Hint>
+    </div>
+  );
+}
+
+/** Inline tab title editor: Enter or blur saves, Esc cancels (`null`). */
+function RenameInput({ initial, onDone }: { initial: string; onDone: (name: string | null) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  const finish = (name: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(name);
+  };
+
+  useEffect(() => {
+    // Deferred so the closing context menu or the terminal can't take focus back afterwards.
+    const timer = setTimeout(() => {
+      ref.current?.focus();
+      ref.current?.select();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <input
+      ref={ref}
+      defaultValue={initial}
+      maxLength={64}
+      spellCheck={false}
+      aria-label="탭 이름"
+      className="bg-background border-ring min-w-0 flex-1 rounded-sm border px-1 text-sm outline-none"
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(e.currentTarget.value);
+        else if (e.key === "Escape") finish(null);
+      }}
+      onBlur={(e) => finish(e.currentTarget.value)}
+    />
+  );
+}
+
+interface TabMenuProps {
+  tabId: string;
+  locked: boolean;
+  canCloseOthers: boolean;
+  onRename: () => void;
+  children: React.ReactNode;
+}
+
+/** Right-click menu of a tab. */
+function TabMenu({ tabId, locked, canCloseOthers, onRename, children }: TabMenuProps) {
+  const { duplicateTab, reconnectTab, closeOtherTabs, closeTab, toggleLock, setActiveTab } = useTabStore.getState();
+  // Only meaningful when closing a tab keeps it alive in session history.
+  const keepsClosedTabs = useSettingsStore((s) => s.historyOnTabClose && s.historyKeepMinutes > 0);
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
+        <ContextMenuItem onSelect={onRename}>
+          <Pencil />
+          이름 변경
+          <ContextMenuShortcut>더블클릭</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => toggleLock(tabId)}>
+          {locked ? <LockOpen /> : <Lock />}
+          {locked ? "잠금 해제" : "탭 잠금"}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => void terminalRegistry.get(tabId)?.copyText("all")}>
+          <ClipboardCopy />
+          모든 텍스트 복사
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void terminalRegistry.get(tabId)?.copyText("screen")}>
+          <Monitor />
+          보이는 화면 복사
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() => {
+            setActiveTab(tabId);
+            terminalRegistry.get(tabId)?.selectAll();
+          }}
+        >
+          <TextSelect />
+          모두 선택
+          <ContextMenuShortcut>Ctrl+Shift+A</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => duplicateTab(tabId)}>
+          <Copy />
+          탭 복제
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => duplicateTab(tabId, "right")}>
+          <Columns2 />
+          오른쪽에 분할하여 복제
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => duplicateTab(tabId, "bottom")}>
+          <Rows2 />
+          아래에 분할하여 복제
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => reconnectTab(tabId)}>
+          <RotateCw />
+          다시 연결
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={!canCloseOthers} onSelect={() => closeOtherTabs(tabId)}>
+          <XSquare />
+          다른 탭 닫기
+        </ContextMenuItem>
+        {keepsClosedTabs && (
+          <ContextMenuItem disabled={locked} onSelect={() => closeTab(tabId, { keep: false })}>
+            <X />
+            닫기 (보관하지 않고 바로 종료)
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem variant="destructive" disabled={locked} onSelect={() => closeTab(tabId)}>
+          <X />
+          탭 닫기
+          <ContextMenuShortcut>Ctrl+Shift+W</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+function DropMarker() {
+  return <span className="bg-primary pointer-events-none absolute inset-y-1 -left-px z-10 w-0.5 rounded" />;
+}
