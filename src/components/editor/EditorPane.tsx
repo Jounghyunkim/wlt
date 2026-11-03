@@ -225,6 +225,18 @@ export function EditorPane({ tab, visible, focused }: { tab: TerminalTab; visibl
     });
   }, [settings.fontFamily, settings.fontSize, settings.ligatures, load.status]);
 
+  // Jump to a requested place (search result), once the file is loaded.
+  const reveal = tab.reveal;
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!reveal || !editor || load.status !== "ready") return;
+    const { line, column, length } = reveal;
+    const range = { startLineNumber: line, startColumn: column, endLineNumber: line, endColumn: column + length };
+    editor.setSelection(range);
+    editor.revealRangeInCenter(range);
+    requestAnimationFrame(() => editor.focus());
+  }, [reveal?.at, load.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!focused || load.status !== "ready") return;
     const frame = requestAnimationFrame(() => editorRef.current?.focus());

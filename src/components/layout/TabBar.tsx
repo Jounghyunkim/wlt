@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Check,
   ClipboardCopy,
   Columns2,
   Copy,
   Lock,
   LockOpen,
+  Palette,
   PanelLeft,
   Pencil,
   Plus,
@@ -25,6 +27,9 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/tooltip";
@@ -32,6 +37,7 @@ import { beginPointerDrag, registerDrop, useDnd } from "@/lib/dnd";
 import { editorRegistry } from "@/components/editor/EditorPane";
 import { fileIcon } from "@/components/explorer/fileIcon";
 import type { FsEntry } from "@/lib/fs";
+import { THEMES, type ThemeName } from "@/lib/themes";
 import { terminalRegistry } from "@/lib/terminalRegistry";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -270,6 +276,50 @@ interface TabMenuProps {
   children: React.ReactNode;
 }
 
+/** Tab menu → "탭 테마": a theme for this terminal only (e.g. to make a production server stand out). */
+function TabThemeMenu({ tabId }: { tabId: string }) {
+  const tabTheme = useTabStore((s) => s.tabs.find((t) => t.id === tabId)?.theme);
+  const globalTheme = useSettingsStore((s) => s.theme);
+  const setTabTheme = useTabStore((s) => s.setTabTheme);
+  const current = tabTheme ?? globalTheme;
+
+  const swatch = (name: ThemeName) => {
+    const t = THEMES[name].terminal;
+    return (
+      <span className="flex h-4 w-7 shrink-0 items-center justify-center gap-px rounded-sm border" style={{ background: THEMES[name].backdrop ?? t.background }}>
+        {[t.red, t.green, t.blue].map((c, i) => (
+          <span key={i} className="size-1.5 rounded-full" style={{ background: c }} />
+        ))}
+      </span>
+    );
+  };
+
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <Palette />
+        탭 테마
+        <span className="text-muted-foreground ml-auto pl-3 text-xs">{tabTheme ? THEMES[tabTheme].label : "기본"}</span>
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent>
+        <ContextMenuItem onSelect={() => setTabTheme(tabId, undefined)}>
+          <Check className={cn(tabTheme && "invisible")} />
+          {swatch(globalTheme)}
+          기본 (설정 테마: {THEMES[globalTheme].label})
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        {(Object.keys(THEMES) as ThemeName[]).map((name) => (
+          <ContextMenuItem key={name} onSelect={() => setTabTheme(tabId, name)}>
+            <Check className={cn((!tabTheme || current !== name) && "invisible")} />
+            {swatch(name)}
+            {THEMES[name].label}
+          </ContextMenuItem>
+        ))}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
 /** Right-click menu of a tab. */
 function TabMenu({ tabId, editorPath, locked, canCloseOthers, onRename, children }: TabMenuProps) {
   const { duplicateTab, reconnectTab, closeOtherTabs, closeTab, toggleLock, setActiveTab } = useTabStore.getState();
@@ -288,6 +338,7 @@ function TabMenu({ tabId, editorPath, locked, canCloseOthers, onRename, children
           {locked ? <LockOpen /> : <Lock />}
           {locked ? "잠금 해제" : "탭 잠금"}
         </ContextMenuItem>
+        {editorPath === undefined && <TabThemeMenu tabId={tabId} />}
         <ContextMenuSeparator />
         {editorPath !== undefined ? (
           <>

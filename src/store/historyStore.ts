@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { backend, isDesktop } from "@/lib/backend";
 import { LOCAL, type FsTarget } from "@/lib/fs";
+import type { ThemeName } from "@/lib/themes";
 import { terminalRegistry } from "@/lib/terminalRegistry";
 import { newId } from "@/lib/utils";
 import { useExplorerStore } from "@/store/explorerStore";
@@ -25,6 +26,8 @@ export interface HistoryEntry {
   cwd?: string;
   closedAt: number;
   fontSize?: number;
+  /** Per-tab theme (tab menu), if set. */
+  theme?: ThemeName;
   /** A screen snapshot file exists (history.rs). */
   hasSnapshot: boolean;
   /** Set while the tab is kept alive (parked): returning to it is instant. Memory only. */
@@ -109,6 +112,7 @@ export const useHistoryStore = create<HistoryState>()(
         const target: TabTarget = entry.target.type === "local" ? { ...entry.target, cwd: entry.cwd } : entry.target;
         const tabId = tabs.openTab(entry.title, target, opts?.split, {
           fontSize: entry.fontSize,
+          theme: entry.theme,
           restore: {
             snapshotId: entry.hasSnapshot ? entry.id : undefined,
             snapshotAt: entry.closedAt,
@@ -174,6 +178,7 @@ async function record(tab: TerminalTab, parked: boolean) {
     cwd: tab.cwd ?? (tab.target.type === "local" ? tab.target.cwd : tab.restore?.cwd),
     closedAt: Date.now(),
     fontSize: terminalRegistry.get(tab.id)?.fontSize() ?? undefined,
+    theme: tab.theme,
     hasSnapshot: false,
     parkedTabId: parked ? tab.id : undefined,
   };

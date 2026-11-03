@@ -24,6 +24,8 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 russh-sftp = "3"
 tauri-plugin-dialog = "2"
 encoding_rs = "0.8"
+regex = "1"
+globset = "0.4"
 
 [profile.release]
 codegen-units = 1

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { SshConnectConfig } from "@/lib/backend";
 import { targetKey, type FsTarget } from "@/lib/fs";
 import { newId } from "@/lib/utils";
+import type { ThemeName } from "@/lib/themes";
 import { useSettingsStore } from "@/store/settingsStore";
 
 export type TabStatus = "connecting" | "connected" | "closed" | "error";
@@ -31,10 +32,21 @@ export interface TerminalTab {
   parkedAt?: number;
   /** Per-tab font size to start with (restored from history). */
   fontSize?: number;
+  /** Theme for this tab only (tab menu); unset = the theme from settings. */
+  theme?: ThemeName;
   /** Editor tabs: unsaved changes (the tab shows ● and closing asks first). */
   dirty?: boolean;
+  /** Editor tabs: place to scroll to and select (e.g. a search result); `at` makes repeats distinct. */
+  reveal?: EditorReveal;
   /** Restored from history: previous screen to show, folder to `cd` to over SSH. */
   restore?: { snapshotId?: string; snapshotAt?: number; cwd?: string };
+}
+
+export interface EditorReveal {
+  line: number;
+  column: number;
+  length: number;
+  at: number;
 }
 
 type CloseHook = (tab: TerminalTab, parked: boolean) => void;
@@ -176,7 +188,7 @@ interface TabState {
     title: string,
     target: TabTarget,
     split?: SplitSide,
-    extra?: Pick<TerminalTab, "fontSize" | "restore">,
+    extra?: Pick<TerminalTab, "fontSize" | "restore" | "theme">,
   ) => string;
   /** Opens a new session to the same target, next to the tab or in a new group on `split`. */
   duplicateTab: (id: string, split?: SplitSide) => void;
@@ -192,8 +204,10 @@ interface TabState {
   unparkTab: (id: string, split?: SplitSide) => void;
   setCwd: (id: string, cwd: string) => void;
   setDirty: (id: string, dirty: boolean) => void;
+  /** `undefined` = follow the theme from settings again. */
+  setTabTheme: (id: string, theme: ThemeName | undefined) => void;
   /** Opens a file in the built-in editor, or focuses the tab where it's already open. */
-  openEditor: (fs: FsTarget, path: string, split?: SplitSide) => string;
+  openEditor: (fs: FsTarget, path: string, split?: SplitSide, reveal?: Omit<EditorReveal, "at">) => string;
   /** Closes every other unlocked tab in the tab's group. */
   closeOtherTabs: (id: string) => void;
   toggleLock: (id: string) => void;
@@ -326,21 +340,26 @@ export const useTabStore = create<TabState>()((set, get) => ({
       };
     }),
 
+  setTabTheme: (id, theme) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, theme } : t)) })),
+
   setDirty: (id, dirty) => {
     if (!!get().tabs.find((t) => t.id === id)?.dirty === dirty) return;
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, dirty } : t)) }));
   },
 
-  openEditor: (fsTarget, path, split) => {
+  openEditor: (fsTarget, path, split, revealAt) => {
+    const reveal = revealAt ? { ...revealAt, at: Date.now() } : undefined;
     const open = get().tabs.find(
       (t) => t.target.type === "editor" && t.target.path === path && targetKey(t.target.fs) === targetKey(fsTarget),
     );
     if (open && !open.parkedAt) {
+      if (reveal) set((s) => ({ tabs: s.tabs.map((t) => (t.id === open.id ? { ...t, reveal } : t)) }));
       get().setActiveTab(open.id);
       return open.id;
     }
     const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
     const id = get().openTab(name, { type: "editor", fs: fsTarget, path }, split);
+    if (reveal) set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, reveal } : t)) }));
     // Editors have no connection; "connected" keeps the tab out of the reconnect paths.
     get().setStatus(id, "connected");
     return id;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Terminal as XTerm, type ITerminalOptions } from "@xterm/xterm";
+import { Terminal as XTerm, type ITerminalOptions, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { SearchAddon } from "@xterm/addon-search";
@@ -11,7 +11,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { backend, isDesktop } from "@/lib/backend";
 import { parseOsc7, parseOsc99, parseTitleCwd, posixCd, remoteIntegrationLine } from "@/lib/cwd";
 import { terminalRegistry } from "@/lib/terminalRegistry";
-import { THEMES, fontStack } from "@/lib/themes";
+import { THEMES, fontStack, type ThemeName } from "@/lib/themes";
 import { useSettingsStore, type Settings } from "@/store/settingsStore";
 import { connIdOf, useTabStore, type TerminalTab } from "@/store/tabStore";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,20 @@ interface TerminalProps {
   focused: boolean;
 }
 
+/**
+ * xterm colors for a theme. With a backdrop (pattern / image) the cell
+ * background is made fully transparent (#rrggbb00) so the backdrop drawn
+ * behind the terminal shows through; the rgb part still drives contrast.
+ */
+function terminalColors(name: ThemeName): ITheme {
+  const { terminal, backdrop } = THEMES[name];
+  if (!backdrop) return terminal;
+  return { ...terminal, background: `${(terminal.background ?? "#000000").slice(0, 7)}00` };
+}
+
 function xtermOptions(s: Settings): ITerminalOptions {
   return {
-    theme: THEMES[s.theme].terminal,
+    theme: terminalColors(s.theme),
     // Light backgrounds wash out dim ANSI colors (e.g. yellow, "white"); xterm darkens them as needed.
     minimumContrastRatio: THEMES[s.theme].dark ? 1 : 4.5,
     fontFamily: fontStack(s.fontFamily),
@@ -121,6 +132,8 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
 
   const settings = useSettingsStore();
   const fontSize = tabFontSize ?? settings.fontSize;
+  /** The tab menu can give a tab its own theme; otherwise the one from settings. */
+  const theme = tab.theme ?? settings.theme;
   const tabFontSizeRef = useRef(tabFontSize);
   tabFontSizeRef.current = tabFontSize;
   const fontSizeRef = useRef(fontSize);
@@ -159,8 +172,10 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
     const container = containerRef.current!;
     const s = useSettingsStore.getState();
     const term = new XTerm({
-      ...xtermOptions(s),
+      ...xtermOptions({ ...s, theme: tab.theme ?? s.theme }),
       allowProposedApi: true,
+      // Needed for pattern / image themes; only settable at creation, so always on.
+      allowTransparency: true,
       macOptionIsMeta: true,
       rightClickSelectsWord: false,
       // Local shells run inside ConPTY; tells xterm how the PTY wraps lines.
@@ -267,6 +282,7 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
           case "KeyB":
           case "KeyE":
           case "KeyH":
+          case "KeyG":
           case "Backslash":
             return false;
         }
@@ -552,7 +568,7 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
     void (async () => {
       await loadFont(settings);
       if (stale) return;
-      const { scrollback, ...rest } = xtermOptions({ ...settings, fontSize });
+      const { scrollback, ...rest } = xtermOptions({ ...settings, fontSize, theme });
       Object.assign(term.options, rest);
       if (term.options.scrollback !== scrollback) term.options.scrollback = scrollback;
       if (settings.webgl) enableWebgl(term);
@@ -568,7 +584,7 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ready,
-    settings.theme,
+    theme,
     settings.fontFamily,
     fontSize,
     settings.lineHeight,
@@ -579,7 +595,7 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
   ]);
 
   return (
-    <div className="relative h-full w-full" style={{ background: THEMES[settings.theme].terminal.background }}>
+    <div className="relative h-full w-full" style={{ background: THEMES[theme].backdrop ?? THEMES[theme].terminal.background }}>
       <div ref={containerRef} className="h-full w-full" />
       {notice && (
         <div className="bg-popover/90 text-popover-foreground pointer-events-none absolute right-3 bottom-3 z-10 rounded-md border px-2.5 py-1 font-mono text-xs shadow">

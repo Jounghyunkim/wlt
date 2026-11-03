@@ -51,6 +51,11 @@ impl SftpManager {
         self.handles.lock().unwrap().insert(id, handle);
     }
 
+    /// The SSH connection of terminal session `id` (for exec channels, e.g. search).
+    pub fn handle(&self, id: &str) -> Option<Arc<SshHandle>> {
+        self.handles.lock().unwrap().get(id).cloned()
+    }
+
     pub async fn unregister(&self, id: &str) {
         self.handles.lock().unwrap().remove(id);
         if let Some(sftp) = self.sessions.lock().await.remove(id) {
@@ -721,7 +726,7 @@ pub struct TextFile {
 
 /// UTF-8 (with or without BOM) when valid, otherwise EUC-KR / CP949 — the
 /// legacy Windows encoding of Korean text files. NUL bytes mean binary.
-fn decode_text(bytes: &[u8]) -> Result<(String, &'static str), String> {
+pub(crate) fn decode_text(bytes: &[u8]) -> Result<(String, &'static str), String> {
     if bytes[..bytes.len().min(8192)].contains(&0) {
         return Err("BINARY: binary file".into());
     }

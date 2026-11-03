@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { ExplorerView } from "@/components/explorer/ExplorerView";
 import { HistoryView } from "@/components/history/HistoryView";
+import { SearchView } from "@/components/search/SearchView";
 import { ViewHeader } from "./ViewHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,7 @@ export function Sidebar(props: SidebarProps) {
       style={{ width: sidebarWidth }}
     >
       <ResizeHandle side={side} />
-      {view === "explorer" ? <ExplorerView /> : view === "history" ? <HistoryView /> : <TerminalsView {...props} />}
+      {view === "explorer" ? <ExplorerView /> : view === "history" ? <HistoryView /> : view === "search" ? <SearchView /> : <TerminalsView {...props} />}
       <p className="text-muted-foreground border-t px-3 py-1.5 text-[11px]">WLT v0.1.0 · by JohnnyStudio</p>
     </aside>
   );

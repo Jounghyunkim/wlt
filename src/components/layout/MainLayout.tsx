@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Server, SquareTerminal } from "lucide-react";
+import { Server, SquareTerminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { backend, isDesktop, type ShellInfo } from "@/lib/backend";
@@ -8,10 +8,12 @@ import { selectActiveTabId, useTabStore, type SplitSide } from "@/store/tabStore
 import { PasswordDialog } from "./PasswordDialog";
 import { SessionDialog } from "./SessionDialog";
 import { SettingsDialog } from "./SettingsDialog";
+import { AboutDialog } from "./AboutDialog";
 import { Sidebar } from "./Sidebar";
 import { Workspace } from "./Workspace";
 import { ActivityBar, showSidebarView } from "./ActivityBar";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { JohnnyLogo } from "@/components/Brand";
 import { DragGhost, listenOsFileDrop } from "@/lib/dnd";
 import { useHistoryStore } from "@/store/historyStore";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,7 @@ export function MainLayout() {
   });
   const [passwordFor, setPasswordFor] = useState<SshSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -122,6 +125,7 @@ export function MainLayout() {
       else if (e.shiftKey && e.code === "KeyB") tabState.toggleSidebar();
       else if (e.shiftKey && e.code === "KeyE") showSidebarView("explorer");
       else if (e.shiftKey && e.code === "KeyH") showSidebarView("history");
+      else if (e.shiftKey && e.code === "KeyG") showSidebarView("search");
       else handled = false;
       if (handled) e.preventDefault();
     };
@@ -133,7 +137,7 @@ export function MainLayout() {
     <TooltipProvider>
       {/* Activity bar on the outer edge, then the sidebar, then the terminals (mirrored on the right). */}
       <div className={cn("flex h-full w-full", sidebarSide === "right" && "flex-row-reverse")}>
-        <ActivityBar onOpenSettings={() => setSettingsOpen(true)} />
+        <ActivityBar onOpenSettings={() => setSettingsOpen(true)} onOpenAbout={() => setAboutOpen(true)} />
         {sidebarOpen && (
           <Sidebar
             shells={shells}
@@ -181,6 +185,7 @@ export function MainLayout() {
         }}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} shells={shells} />
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <DragGhost />
     </TooltipProvider>
   );
@@ -200,7 +205,6 @@ function EmptyState({ onLocal, onNewSession }: { onLocal: () => void; onNewSessi
           로컬 터미널
         </Button>
         <Button variant="secondary" onClick={onNewSession}>
-          <Plus />
           <Server />
           새 SSH 세션
         </Button>
@@ -213,6 +217,7 @@ function EmptyState({ onLocal, onNewSession }: { onLocal: () => void; onNewSessi
           ["Ctrl+Shift+\\", "오른쪽에 터미널 분할"],
           ["Ctrl+Shift+E", "파일 탐색기"],
           ["Ctrl+Shift+H", "세션 히스토리"],
+          ["Ctrl+Shift+G", "파일 내용 검색"],
           ["탭 드래그 → 가장자리", "화면 분할"],
           ["Ctrl+Shift+F", "터미널 검색"],
           ["Ctrl+Shift+C / V", "복사 / 붙여넣기"],
@@ -226,7 +231,10 @@ function EmptyState({ onLocal, onNewSession }: { onLocal: () => void; onNewSessi
           </div>
         ))}
       </dl>
-      <p className="text-muted-foreground text-xs">Made by JohnnyStudio</p>
+      <div className="text-muted-foreground flex flex-col items-center gap-2">
+        <JohnnyLogo className="text-foreground/80 size-14" />
+        <span className="text-xs">gadians2001@gmail.com</span>
+      </div>
     </div>
   );
 }

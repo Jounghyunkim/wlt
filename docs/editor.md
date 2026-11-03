@@ -74,4 +74,4 @@
 
 ---
 
-[← 9. 세션 히스토리](session-history.md) · [가이드 목차](README.md)
+[← 9. 세션 히스토리](session-history.md) · 다음: [11. 파일 내용 검색 →](search.md)

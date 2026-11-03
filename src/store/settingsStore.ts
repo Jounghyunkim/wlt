@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import type { FontFamily, ThemeName } from "@/lib/themes";
 
 export type CursorStyle = "block" | "bar" | "underline";
-export type SidebarView = "terminals" | "explorer" | "history";
+export type SidebarView = "terminals" | "explorer" | "history" | "search";
 
 export interface Settings {
   theme: ThemeName;
@@ -50,6 +50,11 @@ export interface Settings {
   historyMaxEntries: number;
   /** The explorer follows the focused terminal's folder as you `cd`. */
   explorerFollowTerminal: boolean;
+  /**
+   * Folder the explorer opens in, per place: `local`, or `ssh:<session id>`
+   * for a saved SSH session. Missing = the home folder.
+   */
+  explorerStartDirs: Record<string, string>;
 }
 
 export const SIDEBAR_MIN_WIDTH = 180;
@@ -84,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   historySnapshotLines: 1000,
   historyMaxEntries: 100,
   explorerFollowTerminal: false,
+  explorerStartDirs: {},
 };
 
 interface SettingsState extends Settings {

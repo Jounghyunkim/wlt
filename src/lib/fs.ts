@@ -50,6 +50,41 @@ export interface EditEvent {
   error: string | null;
 }
 
+export interface SearchOptions {
+  query: string;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  regex: boolean;
+  /** Comma-separated globs (`*.rs, src/**`). */
+  include: string;
+  exclude: string;
+  maxResults: number;
+}
+
+export interface SearchMatch {
+  line: number;
+  /** 1-based, in characters. */
+  column: number;
+  length: number;
+  /** The line, shortened around the match when long. */
+  text: string;
+  /** Where the match starts within `text`. */
+  textOffset: number;
+}
+
+export interface FileMatches {
+  path: string;
+  matches: SearchMatch[];
+}
+
+export interface SearchSummary {
+  files: number;
+  matches: number;
+  searched: number;
+  truncated: boolean;
+  cancelled: boolean;
+}
+
 export const LOCAL: FsTarget = { kind: "local" };
 
 export function targetKey(t: FsTarget): string {
@@ -90,6 +125,12 @@ export const fsApi = {
     expectedModified: number | null,
     force = false,
   ) => invoke<number | null>("fs_write_text", { target, path, content, encoding, expectedModified, force }),
+  /** Find in files; matches stream in through `onSearch`, the summary resolves at the end. */
+  search: (id: string, target: FsTarget, dir: string, options: SearchOptions) =>
+    invoke<SearchSummary>("fs_search", { id, target, dir, options }),
+  cancelSearch: (id: string) => invoke<void>("fs_search_cancel", { id }),
+  onSearch: (cb: (e: { id: string; file: FileMatches }) => void): Promise<UnlistenFn> =>
+    listen<{ id: string; file: FileMatches }>("fs-search", (e) => cb(e.payload)),
   open: (path: string) => invoke<void>("fs_open", { path }),
   reveal: (path: string) => invoke<void>("fs_reveal", { path }),
   onTransfer: (cb: (p: TransferProgress) => void): Promise<UnlistenFn> =>

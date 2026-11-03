@@ -14,12 +14,14 @@ import {
   FilePlus,
   FolderOpen,
   FolderPlus,
+  FolderRoot,
   FolderSearch,
   FolderUp,
   Home,
   Link2,
   Pencil,
   RefreshCw,
+  Search,
   Scissors,
   SquareTerminal,
   Trash2,
@@ -52,7 +54,9 @@ import { beginPointerDrag, registerDrop, useDnd } from "@/lib/dnd";
 import { LOCAL, formatSize, fsApi, targetKey, type FsEntry, type FsTarget } from "@/lib/fs";
 import { cn } from "@/lib/utils";
 import { dirKey, useExplorerStore } from "@/store/explorerStore";
+import { useSearchStore } from "@/store/searchStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { showSidebarView } from "@/components/layout/ActivityBar";
 import { connIdOf, selectActiveTabId, useTabStore } from "@/store/tabStore";
 import { fileIcon } from "./fileIcon";
 import { TransferList } from "./TransferList";
@@ -141,6 +145,13 @@ export function ExplorerView() {
   } = useExplorerStore();
 
   const [renaming, setRenaming] = useState<string | null>(null);
+  /** Short confirmation (e.g. start folder saved); fades after a few seconds. */
+  const [info, setInfo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!info) return;
+    const timer = setTimeout(() => setInfo(null), 3500);
+    return () => clearTimeout(timer);
+  }, [info]);
   const [creating, setCreating] = useState<{ parent: string; isDir: boolean } | null>(null);
   const [menuRow, setMenuRow] = useState<Extract<Row, { kind: "entry" }> | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
@@ -190,10 +201,29 @@ export function ExplorerView() {
     if (!options.some((o) => o.key === key)) setTarget(LOCAL);
   }, [options, key, setTarget]);
 
-  // Start at the home folder, then load the root.
+  // Saved start folder ("루트 폴더 선택") of this place: the local PC, or the SSH tab's saved session.
+  const startKey = useMemo(() => {
+    if (target.kind === "local") return "local";
+    const tab = tabs.find((t) => t.target.type === "ssh" && connIdOf(t) === target.connId);
+    return tab?.target.type === "ssh" ? `ssh:${tab.target.sessionId}` : null;
+  }, [target, tabs]);
+
+  // Start in the saved start folder (else the home folder), then load the root.
   useEffect(() => {
     if (!isDesktop) return;
-    if (root === undefined || root === "~" || root.startsWith("~/")) {
+    const start = root === undefined && startKey ? useSettingsStore.getState().explorerStartDirs[startKey] : undefined;
+    if (start) {
+      fsApi
+        .list(target, start)
+        .then(() => setRoot(start, target))
+        .catch(() =>
+          fsApi.home(target).then((home) => {
+            setRoot(home, target);
+            setError(`시작 폴더를 열 수 없어 홈 폴더로 열었습니다: ${start}`);
+          }),
+        )
+        .catch((e) => setError(String(e)));
+    } else if (root === undefined || root === "~" || root.startsWith("~/")) {
       // No root yet, or a shell-reported "~/dir" (title fallback): resolve against the home folder.
       fsApi
         .home(target)
@@ -372,6 +402,29 @@ export function ExplorerView() {
       if (parent !== null) setRoot(parent);
     });
 
+  /** Saves `dir` as where the explorer starts for this place (local PC / SSH session). */
+  const saveStartDir = (dir: string) => {
+    if (!startKey) return;
+    const { explorerStartDirs, update } = useSettingsStore.getState();
+    update({ explorerStartDirs: { ...explorerStartDirs, [startKey]: dir } });
+  };
+
+  /** Local: pick a folder in a Windows dialog. SSH: pin the folder being viewed. */
+  const chooseRoot = () =>
+    attempt(async () => {
+      if (!isLocal) {
+        if (!root || !startKey) throw new Error("시작 폴더는 저장된 SSH 세션에서만 지정할 수 있습니다");
+        saveStartDir(root);
+        setInfo(`이 서버의 시작 폴더로 지정했습니다: ${root}`);
+        return;
+      }
+      const dir = await openDialog({ directory: true, defaultPath: root || undefined, title: "탐색기 루트 폴더 선택" });
+      if (typeof dir !== "string") return;
+      setRoot(dir);
+      saveStartDir(dir);
+      setInfo(`루트 폴더로 설정했습니다. 다음에도 이 폴더에서 시작합니다.`);
+    });
+
   const goHome = () => attempt(async () => setRoot(await fsApi.home(target)));
 
   const refresh = () =>
@@ -516,10 +569,19 @@ export function ExplorerView() {
           <ToolbarButton label="홈 폴더" onClick={() => void goHome()}>
             <Home />
           </ToolbarButton>
+          <ToolbarButton
+            label={isLocal ? "루트 폴더 선택 (다음에도 이 폴더에서 시작)" : "지금 폴더를 이 서버의 시작 폴더로 지정"}
+            onClick={() => void chooseRoot()}
+          >
+            <FolderRoot />
+          </ToolbarButton>
           <PathInput value={root ?? ""} placeholder={isLocal ? "내 PC (드라이브)" : "/"} onSubmit={(p) => setRoot(p)} />
         </div>
       </div>
 
+      {info && (
+        <div className="bg-success/10 text-success mx-2 mb-2 rounded-md px-2 py-1.5 text-xs break-words">{info}</div>
+      )}
       {error && (
         <div className="bg-destructive/10 text-destructive mx-2 mb-2 flex items-start gap-2 rounded-md px-2 py-1.5 text-xs">
           <span className="min-w-0 flex-1 break-words">{error}</span>
@@ -657,6 +719,14 @@ export function ExplorerView() {
               <FolderOpen />이 폴더를 루트로
             </ContextMenuItem>
           )}
+          <ContextMenuItem
+            onSelect={() => {
+              useSearchStore.getState().set({ scope: { target, dir: menuDir } });
+              showSidebarView("search");
+            }}
+          >
+            <Search />이 폴더에서 검색
+          </ContextMenuItem>
           {isLocal && menuRow && (
             <ContextMenuItem onSelect={() => void fsApi.reveal(menuRow.entry.path).catch((e) => setError(String(e)))}>
               <FolderSearch />

@@ -5,6 +5,7 @@ mod forward;
 mod history;
 mod local;
 mod logger;
+mod search;
 mod ssh;
 mod state;
 mod utf8;
@@ -51,6 +52,7 @@ pub fn run() {
         .manage(files::SftpManager::default())
         .manage(files::TransferManager::default())
         .manage(files::EditManager::default())
+        .manage(search::SearchManager::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::list_shells,
@@ -71,6 +73,8 @@ pub fn run() {
             files::fs_delete,
             files::fs_transfer,
             files::fs_cancel_transfer,
+            search::fs_search,
+            search::fs_search_cancel,
             files::fs_read_text,
             files::fs_write_text,
             files::fs_edit_remote,

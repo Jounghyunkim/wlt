@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +59,7 @@ export function SettingsDialog({ open, onOpenChange, shells }: SettingsDialogPro
                     "rounded-md border p-2 text-left transition-colors",
                     s.theme === name ? "border-primary ring-primary/40 ring-2" : "hover:border-muted-foreground",
                   )}
-                  style={{ background: t.background, color: t.foreground }}
+                  style={{ background: THEMES[name].backdrop ?? t.background, color: t.foreground }}
                 >
                   <div className="text-xs font-medium">{THEMES[name].label}</div>
                   <div className="mt-1.5 flex gap-1">
@@ -123,7 +124,7 @@ export function SettingsDialog({ open, onOpenChange, shells }: SettingsDialogPro
           style={{
             fontFamily: fontStack(s.fontFamily),
             fontSize: s.fontSize,
-            background: THEMES[s.theme].terminal.background,
+            background: THEMES[s.theme].backdrop ?? THEMES[s.theme].terminal.background,
             color: THEMES[s.theme].terminal.foreground,
           }}
         >
@@ -169,6 +170,8 @@ export function SettingsDialog({ open, onOpenChange, shells }: SettingsDialogPro
             </SelectContent>
           </Select>
         </Field>
+
+        <ExplorerStartDir />
 
         <Field label="기본 로컬 셸">
           <Select
@@ -233,6 +236,55 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="text-muted-foreground text-xs">{label}</Label>
       {children}
     </div>
+  );
+}
+
+/** Where the explorer starts: typed in, picked with the folder dialog, or reset to the home folder. */
+function ExplorerStartDir() {
+  const dirs = useSettingsStore((s) => s.explorerStartDirs);
+  const update = useSettingsStore((s) => s.update);
+  const local = dirs.local ?? "";
+  const remote = Object.keys(dirs).filter((k) => k.startsWith("ssh:")).length;
+  const setLocal = (dir: string) => {
+    const { local: _old, ...rest } = useSettingsStore.getState().explorerStartDirs;
+    update({ explorerStartDirs: dir.trim() ? { ...rest, local: dir.trim() } : rest });
+  };
+
+  return (
+    <Field label="탐색기 시작 폴더 (로컬 PC, 비워 두면 홈 폴더)">
+      <div className="flex gap-2">
+        <Input
+          value={local}
+          placeholder="예: D:\Projects"
+          spellCheck={false}
+          className="font-mono text-xs"
+          onChange={(e) => setLocal(e.target.value)}
+        />
+        <Button
+          variant="outline"
+          disabled={!isDesktop}
+          onClick={() =>
+            void openDialog({ directory: true, defaultPath: local || undefined, title: "탐색기 시작 폴더 선택" }).then(
+              (dir) => typeof dir === "string" && setLocal(dir),
+            )
+          }
+        >
+          <FolderOpen />
+          찾아보기
+        </Button>
+      </div>
+      {remote > 0 && (
+        <p className="text-muted-foreground flex items-center gap-2 text-xs">
+          SSH 서버 시작 폴더 {remote}개 저장됨
+          <button
+            className="text-primary hover:underline"
+            onClick={() => update({ explorerStartDirs: local ? { local } : {} })}
+          >
+            모두 초기화
+          </button>
+        </p>
+      )}
+    </Field>
   );
 }
 
