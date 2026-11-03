@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { SshConnectConfig } from "@/lib/backend";
+import { targetKey, type FsTarget } from "@/lib/fs";
 import { newId } from "@/lib/utils";
 import { useSettingsStore } from "@/store/settingsStore";
 
@@ -7,7 +8,9 @@ export type TabStatus = "connecting" | "connected" | "closed" | "error";
 
 export type TabTarget =
   | { type: "local"; shell?: string; cwd?: string }
-  | { type: "ssh"; sessionId: string; config: SshConnectConfig };
+  | { type: "ssh"; sessionId: string; config: SshConnectConfig }
+  /** Built-in editor (EditorPane) for a file on the local disk or over SFTP. */
+  | { type: "editor"; fs: FsTarget; path: string };
 
 export interface TerminalTab {
   /** Also used as the backend terminal id. */
@@ -28,6 +31,8 @@ export interface TerminalTab {
   parkedAt?: number;
   /** Per-tab font size to start with (restored from history). */
   fontSize?: number;
+  /** Editor tabs: unsaved changes (the tab shows ● and closing asks first). */
+  dirty?: boolean;
   /** Restored from history: previous screen to show, folder to `cd` to over SSH. */
   restore?: { snapshotId?: string; snapshotAt?: number; cwd?: string };
 }
@@ -43,7 +48,7 @@ export function onTabClose(hook: CloseHook) {
 /** Closed tabs are kept alive when history keeping is on and they're still connected. */
 export function willPark(tab: TerminalTab): boolean {
   const { historyOnTabClose, historyKeepMinutes } = useSettingsStore.getState();
-  return historyOnTabClose && historyKeepMinutes > 0 && tab.status === "connected";
+  return historyOnTabClose && historyKeepMinutes > 0 && tab.status === "connected" && tab.target.type !== "editor";
 }
 
 /** Backend session id of the tab's current connection; changes on every reconnect. */
@@ -186,6 +191,9 @@ interface TabState {
   /** Puts a parked tab back on screen, in the focused group or a new split. */
   unparkTab: (id: string, split?: SplitSide) => void;
   setCwd: (id: string, cwd: string) => void;
+  setDirty: (id: string, dirty: boolean) => void;
+  /** Opens a file in the built-in editor, or focuses the tab where it's already open. */
+  openEditor: (fs: FsTarget, path: string, split?: SplitSide) => string;
   /** Closes every other unlocked tab in the tab's group. */
   closeOtherTabs: (id: string) => void;
   toggleLock: (id: string) => void;
@@ -241,7 +249,7 @@ export const useTabStore = create<TabState>()((set, get) => ({
     set((s) => {
       const source = s.tabs.find((t) => t.id === id);
       const group = groupOfTab(s.groups, id);
-      if (!source || !group) return s;
+      if (!source || !group || source.target.type === "editor") return s;
       const tab: TerminalTab = {
         ...source,
         id: newId(),
@@ -274,6 +282,7 @@ export const useTabStore = create<TabState>()((set, get) => ({
   closeTab: (id, opts) => {
     const tab = get().tabs.find((t) => t.id === id);
     if (!tab || tab.locked || tab.parkedAt) return;
+    if (tab.dirty && !confirm(`'${tab.title}'의 변경 내용을 저장하지 않았습니다. 저장하지 않고 닫을까요?`)) return;
     const park = opts?.keep !== false && willPark(tab);
     // By default a tab the user closes is simply gone; history is filled when the app quits.
     if (useSettingsStore.getState().historyOnTabClose) closeHooks.forEach((hook) => hook(tab, park));
@@ -316,6 +325,26 @@ export const useTabStore = create<TabState>()((set, get) => ({
         groups: { ...s.groups, [focused.id]: { ...focused, tabIds: [...focused.tabIds, id], activeTabId: id } },
       };
     }),
+
+  setDirty: (id, dirty) => {
+    if (!!get().tabs.find((t) => t.id === id)?.dirty === dirty) return;
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, dirty } : t)) }));
+  },
+
+  openEditor: (fsTarget, path, split) => {
+    const open = get().tabs.find(
+      (t) => t.target.type === "editor" && t.target.path === path && targetKey(t.target.fs) === targetKey(fsTarget),
+    );
+    if (open && !open.parkedAt) {
+      get().setActiveTab(open.id);
+      return open.id;
+    }
+    const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+    const id = get().openTab(name, { type: "editor", fs: fsTarget, path }, split);
+    // Editors have no connection; "connected" keeps the tab out of the reconnect paths.
+    get().setStatus(id, "connected");
+    return id;
+  },
 
   setCwd: (id, cwd) => {
     if (get().tabs.find((t) => t.id === id)?.cwd === cwd) return;

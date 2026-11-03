@@ -49,7 +49,8 @@ const sameTarget = (a: TabTarget, b: TabTarget) =>
     : a.type === "ssh" && b.type === "ssh" && a.sessionId === b.sessionId;
 
 function stripSecrets(target: TabTarget): TabTarget {
-  if (target.type !== "ssh") return { type: "local", shell: target.shell };
+  if (target.type === "local") return { type: "local", shell: target.shell };
+  if (target.type !== "ssh") return target;
   const { password: _p, passphrase: _pp, ...config } = target.config;
   return { ...target, config };
 }
@@ -163,6 +164,7 @@ export const useHistoryStore = create<HistoryState>()(
 
 /** Adds a closing tab to the top of the history (merging an older entry for the same place). */
 async function record(tab: TerminalTab, parked: boolean) {
+  if (tab.target.type === "editor") return; // files reopen from the explorer, not from history
   const settings = useSettingsStore.getState();
   const id = newId();
   const entry: HistoryEntry = {

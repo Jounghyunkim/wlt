@@ -15,7 +15,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "paths": { "@/*": ["./src/*"] },
+    "paths": { "@/*": ["./src/*"], "monaco-esm/*": ["./node_modules/monaco-editor/esm/vs/*"] },
     "types": ["vite/client"]
   },
   "include": ["src"]

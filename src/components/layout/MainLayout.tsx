@@ -97,7 +97,12 @@ export function MainLayout() {
   // Tauri waits for this handler, then destroys the window.
   useEffect(() => {
     if (!isDesktop) return;
-    const unlisten = getCurrentWindow().onCloseRequested(async () => {
+    const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
+      const unsaved = useTabStore.getState().tabs.filter((t) => t.dirty).map((t) => t.title);
+      if (unsaved.length && !confirm(`저장하지 않은 파일이 있습니다: ${unsaved.join(", ")}\n저장하지 않고 종료할까요?`)) {
+        event.preventDefault();
+        return;
+      }
       await useHistoryStore.getState().recordAll().catch((e) => console.warn("history on exit failed", e));
     });
     return () => void unlisten.then((f) => f());

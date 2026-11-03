@@ -23,6 +23,7 @@ russh = { version = "0.65", default-features = false, features = ["ring", "rsa",
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 russh-sftp = "3"
 tauri-plugin-dialog = "2"
+encoding_rs = "0.8"
 
 [profile.release]
 codegen-units = 1

@@ -18,7 +18,8 @@ Windows x64용 경량 터미널 (PuTTY 대체). 로컬 셸(PowerShell / cmd / WS
 | [6. 설정과 세션 로그](docs/settings-and-logs.md) | 테마, 글꼴, 사이드바 위치, 입출력 로그 저장 |
 | [7. 단축키](docs/shortcuts.md) | 키보드·마우스 동작 한눈에 보기 |
 | [8. 문제 해결](docs/troubleshooting.md) | 자주 겪는 문제와 해결 방법 |
-| [9. 세션 히스토리](docs/session-history.md) | 닫은 탭으로 돌아가기, 작업 폴더 복귀, 탐색기 동기화 |
+| [9. 세션 히스토리](docs/session-history.md) | 앱 종료 때 열려 있던 탭으로 돌아가기, 작업 폴더 복귀, 탐색기 동기화 |
+| [10. 편집기](docs/editor.md) | 탐색기에서 파일 더블클릭 → VS Code와 같은 편집기로 로컬·서버 파일 편집 |
 
 ## 주요 기능
 
@@ -26,6 +27,7 @@ Windows x64용 경량 터미널 (PuTTY 대체). 로컬 셸(PowerShell / cmd / WS
 - **탭 · 화면 분할 (VS Code 방식)**: 탭을 끌어 상하좌우 분할, 연결을 유지한 채 창 사이 이동, 탭 복제·잠금·이름 변경, 전체 텍스트 복사, 탭별 글꼴 확대(`Ctrl`+스크롤)
 - **작업 표시줄 · 파일 탐색기**: 로컬 PC / 서버(SFTP) 파일 관리, 업로드·다운로드, Windows 탐색기에서 끌어다 놓기, 서버 파일을 로컬 앱으로 편집하면 저장 시 자동 업로드
 - **세션 히스토리**: 앱을 종료할 때 열려 있던 탭을 기록해 두고, 다음에 클릭하면 같은 셸·서버에 다시 연결해 마지막 폴더로 이동 + 이전 화면 표시 + 탐색기 동기화 (셸 통합으로 현재 폴더 추적). 옵션으로 직접 닫은 탭도 저장하고 30분간 살려 두어 그대로 이어서 작업
+- **편집기**: 탐색기에서 파일을 더블클릭하면 Monaco(VS Code 편집기) 탭으로 열어 로컬·서버 파일을 직접 편집·저장 (문법 강조 80여 개 언어, 찾기·바꾸기, 멀티 커서, UTF-8/EUC-KR 인코딩 유지, 다른 프로그램의 변경 감지)
 - **보안**: 비밀번호·키 암호를 Windows 자격 증명 관리자에 저장(화면으로는 다시 전달하지 않음), 서버 키 확인(TOFU)
 - **포트 포워딩**: 로컬(-L), 원격(-R), 동적 SOCKS5(-D)
 - **설정 · 로그**: 테마 6종(밝은 테마 포함), 글꼴 14종, 사이드바 왼쪽/오른쪽, 패널별 입출력 로그 저장
@@ -81,6 +83,7 @@ WLT/
 │  │  ├─ Terminal.tsx           # xterm.js 래퍼 (IPC, 자동 맞춤, 검색, 복사/붙여넣기, 탭별 확대, 로그 시작)
 │  │  ├─ explorer/              # ExplorerView(트리·메뉴·키보드·드롭), TransferList(전송·편집 중), fileIcon
 │  │  ├─ history/               # HistoryView (세션 히스토리)
+│  │  ├─ editor/                # EditorPane (Monaco 편집기 탭)
 │  │  ├─ layout/
 │  │  │  ├─ MainLayout.tsx      # 전체 레이아웃, 전역 단축키, OS 파일 드롭, 시작 화면
 │  │  │  ├─ ActivityBar.tsx     # 작업 표시줄 (터미널 / 탐색기 / 설정)
@@ -90,7 +93,7 @@ WLT/
 │  │  │  └─ *Dialog.tsx         # 세션(인증·포워딩) · 비밀번호 · 설정 다이얼로그
 │  │  └─ ui/                    # shadcn/ui 컴포넌트
 │  ├─ store/                    # Zustand: tabStore, sessionStore·settingsStore·historyStore(영속), explorerStore
-│  └─ lib/                      # backend.ts · fs.ts(IPC 래퍼), dnd.tsx, cwd.ts(셸 통합), themes.ts, terminalRegistry.ts
+│  └─ lib/                      # backend.ts · fs.ts(IPC 래퍼), dnd.tsx, cwd.ts(셸 통합), monaco.ts(언어 서비스를 뺀 Monaco), themes.ts, terminalRegistry.ts
 ├─ src-tauri/
 │  ├─ src/
 │  │  ├─ lib.rs, commands.rs, state.rs, utf8.rs

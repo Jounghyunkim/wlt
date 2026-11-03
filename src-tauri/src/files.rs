@@ -93,6 +93,8 @@ enum Fs {
 struct Stat {
     is_dir: bool,
     size: u64,
+    /// Unix seconds.
+    modified: Option<i64>,
 }
 
 type Reader = Box<dyn AsyncRead + Unpin + Send>;
@@ -235,7 +237,7 @@ impl Fs {
     async fn stat(&self, path: &str) -> Result<Option<Stat>, String> {
         match self {
             Fs::Local => match tokio::fs::metadata(path).await {
-                Ok(m) => Ok(Some(Stat { is_dir: m.is_dir(), size: m.len() })),
+                Ok(m) => Ok(Some(Stat { is_dir: m.is_dir(), size: m.len(), modified: unix_secs(m.modified()) })),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(io_err(path, e)),
             },
@@ -244,7 +246,7 @@ impl Fs {
                     return Ok(None);
                 }
                 let m = sftp.metadata(path).await.map_err(sftp_err)?;
-                Ok(Some(Stat { is_dir: m.is_dir(), size: m.size.unwrap_or(0) }))
+                Ok(Some(Stat { is_dir: m.is_dir(), size: m.size.unwrap_or(0), modified: m.mtime.map(i64::from) }))
             }
         }
     }
@@ -701,6 +703,87 @@ pub async fn fs_cancel_transfer(transfers: tauri::State<'_, TransferManager>, id
     Ok(())
 }
 
+// ── Built-in editor: read / write text files ────────────────────────────────
+
+/// Bigger files are opened with an external app instead.
+const MAX_TEXT_FILE: u64 = 10 * 1024 * 1024;
+const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextFile {
+    content: String,
+    /// "utf-8" | "utf-8-bom" | "euc-kr" — saved back the same way.
+    encoding: &'static str,
+    modified: Option<i64>,
+    size: u64,
+}
+
+/// UTF-8 (with or without BOM) when valid, otherwise EUC-KR / CP949 — the
+/// legacy Windows encoding of Korean text files. NUL bytes mean binary.
+fn decode_text(bytes: &[u8]) -> Result<(String, &'static str), String> {
+    if bytes[..bytes.len().min(8192)].contains(&0) {
+        return Err("BINARY: binary file".into());
+    }
+    if let Some(rest) = bytes.strip_prefix(UTF8_BOM) {
+        return Ok((String::from_utf8_lossy(rest).into_owned(), "utf-8-bom"));
+    }
+    match std::str::from_utf8(bytes) {
+        Ok(text) => Ok((text.to_string(), "utf-8")),
+        Err(_) => Ok((encoding_rs::EUC_KR.decode(bytes).0.into_owned(), "euc-kr")),
+    }
+}
+
+fn encode_text(text: &str, encoding: &str) -> Vec<u8> {
+    match encoding {
+        "utf-8-bom" => [UTF8_BOM, text.as_bytes()].concat(),
+        "euc-kr" => encoding_rs::EUC_KR.encode(text).0.into_owned(),
+        _ => text.as_bytes().to_vec(),
+    }
+}
+
+/// Errors start with `BINARY:` / `TOO_LARGE:` when the file should open externally instead.
+#[tauri::command]
+pub async fn fs_read_text(app: AppHandle, target: FsTarget, path: String) -> Result<TextFile, String> {
+    let fs = resolve(&app, &target).await?;
+    let stat = fs.stat(&path).await?.ok_or_else(|| format!("not found: {path}"))?;
+    if stat.is_dir {
+        return Err(format!("is a folder: {path}"));
+    }
+    if stat.size > MAX_TEXT_FILE {
+        return Err(format!("TOO_LARGE: {} MB", stat.size / 1024 / 1024));
+    }
+    let mut bytes = Vec::with_capacity(stat.size as usize);
+    fs.reader(&path).await?.read_to_end(&mut bytes).await.map_err(|e| io_err(&path, e))?;
+    let (content, encoding) = decode_text(&bytes)?;
+    Ok(TextFile { content, encoding, modified: stat.modified, size: stat.size })
+}
+
+/// Saves editor text. Unless `force`, refuses (error starting with `CONFLICT:`)
+/// when the file changed on disk since `expected_modified`. Returns the new modified time.
+#[tauri::command]
+pub async fn fs_write_text(
+    app: AppHandle,
+    target: FsTarget,
+    path: String,
+    content: String,
+    encoding: String,
+    expected_modified: Option<i64>,
+    force: bool,
+) -> Result<Option<i64>, String> {
+    let fs = resolve(&app, &target).await?;
+    if !force {
+        let current = fs.stat(&path).await?.and_then(|s| s.modified);
+        if expected_modified.is_some() && current.is_some() && current != expected_modified {
+            return Err("CONFLICT: the file was changed by another program after it was opened".into());
+        }
+    }
+    let mut writer = fs.writer(&path).await?;
+    writer.write_all(&encode_text(&content, &encoding)).await.map_err(|e| io_err(&path, e))?;
+    writer.shutdown().await.map_err(|e| io_err(&path, e))?;
+    Ok(fs.stat(&path).await?.and_then(|s| s.modified))
+}
+
 // ── Editing remote files: open → save → automatic upload ────────────────────
 
 #[derive(Clone, Serialize)]
@@ -898,6 +981,19 @@ mod tests {
         assert_eq!(Fs::Local.parent_of(r"C:\"), Some(String::new()));
         assert_eq!(Fs::Local.parent_of(""), None);
         assert_eq!(Fs::Local.name_of(r"C:\a\b.txt"), "b.txt");
+    }
+
+    #[test]
+    fn text_encodings_round_trip() {
+        let korean = "한글 테스트\r\nline 2";
+        for enc in ["utf-8", "utf-8-bom", "euc-kr"] {
+            let bytes = encode_text(korean, enc);
+            let (text, detected) = decode_text(&bytes).unwrap();
+            assert_eq!((text.as_str(), detected), (korean, enc), "{enc}");
+        }
+        // CP949 bytes are not valid UTF-8, so they're detected as EUC-KR.
+        assert_eq!(decode_text(&[0xc7, 0xd1, 0xb1, 0xdb]).unwrap(), ("한글".to_string(), "euc-kr"));
+        assert!(decode_text(b"MZ\0\0binary").unwrap_err().starts_with("BINARY"));
     }
 
     fn s(p: &Path) -> String {

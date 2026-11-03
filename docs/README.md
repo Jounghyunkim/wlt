@@ -15,6 +15,7 @@ WLT Terminal은 Windows용 터미널 프로그램입니다. 내 PC의 셸(PowerS
 | [7. 단축키](shortcuts.md) | 키보드·마우스 동작 한눈에 보기 |
 | [8. 문제 해결](troubleshooting.md) | 자주 겪는 문제와 해결 방법 |
 | [9. 세션 히스토리](session-history.md) | 앱 종료 때 열려 있던 탭으로 돌아가기, 작업 폴더 복귀, 탐색기 동기화 |
+| [10. 편집기](editor.md) | 탐색기에서 파일 더블클릭 → VS Code와 같은 편집기로 로컬·서버 파일 편집 |
 
 ## 처음이라면
 

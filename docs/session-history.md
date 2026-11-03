@@ -107,4 +107,4 @@
 
 ---
 
-[← 8. 문제 해결](troubleshooting.md) · [가이드 목차](README.md)
+[← 8. 문제 해결](troubleshooting.md) · 다음: [10. 편집기 →](editor.md)

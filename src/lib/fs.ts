@@ -19,6 +19,16 @@ export interface FsEntry {
 
 export type TransferMode = "copy" | "move";
 
+export type TextEncoding = "utf-8" | "utf-8-bom" | "euc-kr";
+
+export interface TextFile {
+  content: string;
+  encoding: TextEncoding;
+  /** Unix seconds; sent back on save to detect changes by other programs. */
+  modified: number | null;
+  size: number;
+}
+
 export interface TransferProgress {
   id: string;
   done: number;
@@ -69,6 +79,17 @@ export const fsApi = {
   editRemote: (target: FsTarget, path: string) => invoke<string>("fs_edit_remote", { target, path }),
   stopEdit: (id: string) => invoke<void>("fs_stop_edit", { id }),
   onEdit: (cb: (e: EditEvent) => void): Promise<UnlistenFn> => listen<EditEvent>("fs-edit", (e) => cb(e.payload)),
+  /** Text for the built-in editor. Errors start with `BINARY:` / `TOO_LARGE:` when it should open externally. */
+  readText: (target: FsTarget, path: string) => invoke<TextFile>("fs_read_text", { target, path }),
+  /** Saves editor text; fails with `CONFLICT:` if the file changed since `expectedModified` (unless `force`). */
+  writeText: (
+    target: FsTarget,
+    path: string,
+    content: string,
+    encoding: TextEncoding,
+    expectedModified: number | null,
+    force = false,
+  ) => invoke<number | null>("fs_write_text", { target, path, content, encoding, expectedModified, force }),
   open: (path: string) => invoke<void>("fs_open", { path }),
   reveal: (path: string) => invoke<void>("fs_reveal", { path }),
   onTransfer: (cb: (p: TransferProgress) => void): Promise<UnlistenFn> =>

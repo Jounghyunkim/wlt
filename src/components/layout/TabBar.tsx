@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   RotateCw,
+  Save,
   Rows2,
   Monitor,
   Server,
@@ -28,6 +29,9 @@ import {
 } from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/tooltip";
 import { beginPointerDrag, registerDrop, useDnd } from "@/lib/dnd";
+import { editorRegistry } from "@/components/editor/EditorPane";
+import { fileIcon } from "@/components/explorer/fileIcon";
+import type { FsEntry } from "@/lib/fs";
 import { terminalRegistry } from "@/lib/terminalRegistry";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -90,10 +94,10 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
   const tabs = group.tabIds.map((id) => allTabs.find((t) => t.id === id)).filter((t) => t !== undefined);
 
   return (
-    <div className="bg-sidebar flex h-10 shrink-0 items-end border-b">
+    <div className="bg-sidebar flex h-[30px] shrink-0 items-end border-b">
       {showSidebarToggle && (
         <Hint label="사이드바 (Ctrl+Shift+B)">
-          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-none" onClick={toggleSidebar}>
+          <Button variant="ghost" size="icon" className="h-[30px] w-[30px] shrink-0 rounded-none [&_svg]:size-3.5" onClick={toggleSidebar}>
             <PanelLeft />
           </Button>
         </Hint>
@@ -106,12 +110,18 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
       >
         {tabs.map((tab, i) => {
           const active = tab.id === group.activeTabId;
-          const Icon = tab.target.type === "ssh" ? Server : SquareTerminal;
+          const Icon =
+            tab.target.type === "editor"
+              ? fileIcon({ name: tab.title, isDir: false } as FsEntry, false)
+              : tab.target.type === "ssh"
+                ? Server
+                : SquareTerminal;
           const editing = editingTabId === tab.id;
           return (
             <TabMenu
               key={tab.id}
               tabId={tab.id}
+              editorPath={tab.target.type === "editor" ? tab.target.path : undefined}
               locked={tab.locked}
               canCloseOthers={tabs.some((t) => t.id !== tab.id && !t.locked)}
               onRename={() => setEditingTabId(tab.id)}
@@ -133,7 +143,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
                 }}
                 title={tab.title}
                 className={cn(
-                  "group relative flex h-9 max-w-52 min-w-32 shrink-0 cursor-default items-center gap-2 border-r px-3 text-sm",
+                  "group relative flex h-7 max-w-44 min-w-24 shrink-0 cursor-default items-center gap-1.5 border-r px-2.5 text-xs",
                   active
                     ? "bg-background text-foreground"
                     : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
@@ -146,7 +156,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
                   />
                 )}
                 {dropBefore === tab.id && <DropMarker />}
-                <Icon className="size-3.5 shrink-0" />
+                <Icon className="size-3 shrink-0" />
                 {editing ? (
                   <RenameInput
                     initial={tab.title}
@@ -160,7 +170,12 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
                     {tab.title}
                   </span>
                 )}
-                <span className={cn("size-2 shrink-0 rounded-full", STATUS_COLOR[tab.status])} />
+                {tab.target.type === "editor" ? (
+                  // Unsaved changes: a dot, like VS Code.
+                  tab.dirty && <span className="bg-foreground size-1.5 shrink-0 rounded-full" title="저장하지 않은 변경 내용" />
+                ) : (
+                  <span className={cn("size-1.5 shrink-0 rounded-full", STATUS_COLOR[tab.status])} />
+                )}
                 {tab.locked ? (
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
@@ -169,7 +184,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
                     title="잠긴 탭 (클릭하여 잠금 해제)"
                     aria-label="탭 잠금 해제"
                   >
-                    <Lock className="size-3.5" />
+                    <Lock className="size-3" />
                   </button>
                 ) : (
                   <button
@@ -181,7 +196,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
                     )}
                     aria-label="탭 닫기"
                   >
-                    <X className="size-3.5" />
+                    <X className="size-3" />
                   </button>
                 )}
               </div>
@@ -191,7 +206,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
         <div className="relative flex h-full shrink-0 items-end">
           {dropBefore === "end" && <DropMarker />}
           <Hint label="새 로컬 터미널 (Ctrl+Shift+T)">
-            <Button variant="ghost" size="icon" className="mb-0.5 ml-1 size-8 shrink-0" onClick={onNewTab}>
+            <Button variant="ghost" size="icon" className="mb-0.5 ml-1 size-6 shrink-0 [&_svg]:size-3.5" onClick={onNewTab}>
               <Plus />
             </Button>
           </Hint>
@@ -199,7 +214,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
       </div>
 
       <Hint label="오른쪽에 새 터미널 분할 (Ctrl+Shift+\)">
-        <Button variant="ghost" size="icon" className="mr-1 mb-0.5 size-8 shrink-0" onClick={onSplitRight}>
+        <Button variant="ghost" size="icon" className="mr-1 mb-0.5 size-6 shrink-0 [&_svg]:size-3.5" onClick={onSplitRight}>
           <Columns2 />
         </Button>
       </Hint>
@@ -233,7 +248,7 @@ function RenameInput({ initial, onDone }: { initial: string; onDone: (name: stri
       maxLength={64}
       spellCheck={false}
       aria-label="탭 이름"
-      className="bg-background border-ring min-w-0 flex-1 rounded-sm border px-1 text-sm outline-none"
+      className="bg-background border-ring min-w-0 flex-1 rounded-sm border px-1 text-xs outline-none"
       onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();
@@ -247,6 +262,8 @@ function RenameInput({ initial, onDone }: { initial: string; onDone: (name: stri
 
 interface TabMenuProps {
   tabId: string;
+  /** Set for editor tabs: the file path (editor menu instead of terminal items). */
+  editorPath?: string;
   locked: boolean;
   canCloseOthers: boolean;
   onRename: () => void;
@@ -254,7 +271,7 @@ interface TabMenuProps {
 }
 
 /** Right-click menu of a tab. */
-function TabMenu({ tabId, locked, canCloseOthers, onRename, children }: TabMenuProps) {
+function TabMenu({ tabId, editorPath, locked, canCloseOthers, onRename, children }: TabMenuProps) {
   const { duplicateTab, reconnectTab, closeOtherTabs, closeTab, toggleLock, setActiveTab } = useTabStore.getState();
   // Only meaningful when closing a tab keeps it alive in session history.
   const keepsClosedTabs = useSettingsStore((s) => s.historyOnTabClose && s.historyKeepMinutes > 0);
@@ -272,42 +289,58 @@ function TabMenu({ tabId, locked, canCloseOthers, onRename, children }: TabMenuP
           {locked ? "잠금 해제" : "탭 잠금"}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => void terminalRegistry.get(tabId)?.copyText("all")}>
-          <ClipboardCopy />
-          모든 텍스트 복사
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void terminalRegistry.get(tabId)?.copyText("screen")}>
-          <Monitor />
-          보이는 화면 복사
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => {
-            setActiveTab(tabId);
-            terminalRegistry.get(tabId)?.selectAll();
-          }}
-        >
-          <TextSelect />
-          모두 선택
-          <ContextMenuShortcut>Ctrl+Shift+A</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => duplicateTab(tabId)}>
-          <Copy />
-          탭 복제
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => duplicateTab(tabId, "right")}>
-          <Columns2 />
-          오른쪽에 분할하여 복제
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => duplicateTab(tabId, "bottom")}>
-          <Rows2 />
-          아래에 분할하여 복제
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => reconnectTab(tabId)}>
-          <RotateCw />
-          다시 연결
-        </ContextMenuItem>
+        {editorPath !== undefined ? (
+          <>
+            <ContextMenuItem onSelect={() => void editorRegistry.get(tabId)?.save()}>
+              <Save />
+              저장
+              <ContextMenuShortcut>Ctrl+S</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => void navigator.clipboard.writeText(editorPath)}>
+              <Copy />
+              경로 복사
+            </ContextMenuItem>
+          </>
+        ) : (
+          <>
+            <ContextMenuItem onSelect={() => void terminalRegistry.get(tabId)?.copyText("all")}>
+              <ClipboardCopy />
+              모든 텍스트 복사
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => void terminalRegistry.get(tabId)?.copyText("screen")}>
+              <Monitor />
+              보이는 화면 복사
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => {
+                setActiveTab(tabId);
+                terminalRegistry.get(tabId)?.selectAll();
+              }}
+            >
+              <TextSelect />
+              모두 선택
+              <ContextMenuShortcut>Ctrl+Shift+A</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => duplicateTab(tabId)}>
+              <Copy />
+              탭 복제
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => duplicateTab(tabId, "right")}>
+              <Columns2 />
+              오른쪽에 분할하여 복제
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => duplicateTab(tabId, "bottom")}>
+              <Rows2 />
+              아래에 분할하여 복제
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => reconnectTab(tabId)}>
+              <RotateCw />
+              다시 연결
+            </ContextMenuItem>
+          </>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem disabled={!canCloseOthers} onSelect={() => closeOtherTabs(tabId)}>
           <XSquare />

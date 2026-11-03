@@ -6,9 +6,11 @@ import {
   ChevronRight,
   CopyMinus,
   ClipboardPaste,
+  Columns2,
   Copy,
   Download,
   ExternalLink,
+  FileCode,
   FilePlus,
   FolderOpen,
   FolderPlus,
@@ -177,7 +179,8 @@ export function ExplorerView() {
   const followKey = activeTab ? `${activeTab.id}:${activeTab.generation}:${activeTab.status}` : "";
   useEffect(() => {
     if (!activeTab) return;
-    if (activeTab.target.type === "local") setTarget(LOCAL);
+    if (activeTab.target.type === "editor") setTarget(activeTab.target.fs);
+    else if (activeTab.target.type === "local") setTarget(LOCAL);
     else if (activeTab.status === "connected") setTarget({ kind: "ssh", connId: connIdOf(activeTab) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [followKey]);
@@ -206,7 +209,7 @@ export function ExplorerView() {
   const follow = useSettingsStore((s) => s.explorerFollowTerminal);
   const activeCwd = activeTab?.cwd;
   useEffect(() => {
-    if (!follow || !activeTab || !activeCwd) return;
+    if (!follow || !activeTab || !activeCwd || activeTab.target.type === "editor") return;
     const tabTarget: FsTarget =
       activeTab.target.type === "local" ? LOCAL : { kind: "ssh", connId: connIdOf(activeTab) };
     if (targetKey(tabTarget) === key && activeCwd !== root) setRoot(activeCwd, tabTarget);
@@ -338,8 +341,11 @@ export function ExplorerView() {
       await startTransfer({ label: `${paths.length}개 항목 업로드`, src: LOCAL, paths, dst: target, dstDir: dir, mode: "copy" });
     });
 
-  /** Local files open directly; remote files open as a synced copy that uploads on every save. */
-  const openEntry = (entry: FsEntry) =>
+  /** Double-click / Enter: the built-in editor (it offers an external app for binary or huge files). */
+  const openEntry = (entry: FsEntry, split?: "right") => useTabStore.getState().openEditor(target, entry.path, split);
+
+  /** With the default app: local files directly, remote ones as a synced copy that uploads on every save. */
+  const openExternally = (entry: FsEntry) =>
     attempt(async () => {
       if (isLocal) return fsApi.open(entry.path);
       await editRemote(target, entry.path);
@@ -429,7 +435,7 @@ export function ExplorerView() {
       else if (rowOf(row.parent)) move(entryRows.findIndex((r) => r.entry.path === row.parent));
     } else if (e.key === "Enter" && row) {
       if (row.entry.isDir) toggle(row.entry.path);
-      else void openEntry(row.entry);
+      else openEntry(row.entry);
     } else if (e.key === "F2" && row) setRenaming(row.entry.path);
     else if (e.key === "Delete" && selection.length) setPendingDelete(selection);
     else if (ctrl && e.code === "KeyC") copyToClipboard("copy");
@@ -586,7 +592,7 @@ export function ExplorerView() {
                   data-drop-path={dropHere}
                   onPointerDown={(e) => onRowPointerDown(e, entry)}
                   onClick={(e) => onRowClick(e, row)}
-                  onDoubleClick={() => !entry.isDir && void openEntry(entry)}
+                  onDoubleClick={() => !entry.isDir && openEntry(entry)}
                   onContextMenu={() => {
                     if (!selection.includes(entry.path)) select([entry.path]);
                     setMenuRow(row);
@@ -630,10 +636,21 @@ export function ExplorerView() {
           </ContextMenuItem>
           <ContextMenuSeparator />
           {menuRow && !menuRow.entry.isDir && (
-            <ContextMenuItem onSelect={() => void openEntry(menuRow.entry)}>
-              <ExternalLink />
-              {isLocal ? "열기" : "열기 (저장하면 서버에 자동 업로드)"}
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem onSelect={() => openEntry(menuRow.entry)}>
+                <FileCode />
+                편집기에서 열기
+                <ContextMenuShortcut>더블클릭</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => openEntry(menuRow.entry, "right")}>
+                <Columns2 />
+                오른쪽에 분할하여 열기
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void openExternally(menuRow.entry)}>
+                <ExternalLink />
+                {isLocal ? "외부 프로그램으로 열기" : "외부 프로그램으로 열기 (저장하면 자동 업로드)"}
+              </ContextMenuItem>
+            </>
           )}
           {menuRow?.entry.isDir && (
             <ContextMenuItem onSelect={() => setRoot(menuRow.entry.path)}>

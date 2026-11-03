@@ -406,9 +406,9 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
       if (s.logEnabled && (s.logOutput || s.logInput)) {
         const { target } = tab;
         const description =
-          target.type === "local"
-            ? (shell ?? "default shell")
-            : `ssh ${target.config.username}@${target.config.host}:${target.config.port}`;
+          target.type === "ssh"
+            ? `ssh ${target.config.username}@${target.config.host}:${target.config.port}`
+            : (shell ?? "default shell");
         try {
           const files = await backend.startLog(connId, tab.title, description, {
             dir: s.logDir,
@@ -429,7 +429,7 @@ export function Terminal({ tab, visible, focused }: TerminalProps) {
       try {
         if (tab.target.type === "local") {
           await backend.openLocal(connId, { shell, cwd: tab.target.cwd, shellIntegration: s.shellIntegration, cols, rows });
-        } else {
+        } else if (tab.target.type === "ssh") {
           await backend.openSsh(connId, tab.target.config, cols, rows);
           // In case the whole greeting arrived before "connected" was known.
           window.setTimeout(() => !cancelled && sendIntegration(0), 1500);

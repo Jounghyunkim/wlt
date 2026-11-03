@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Terminal } from "@/components/Terminal";
+import { EditorPane } from "@/components/editor/EditorPane";
 import { registerDrop, useDnd, type DragPayload } from "@/lib/dnd";
 import { terminalRegistry } from "@/lib/terminalRegistry";
 import { cn } from "@/lib/utils";
@@ -118,10 +119,14 @@ export function Workspace({ emptyState, onNewTab, onSplitRight }: WorkspaceProps
             className={visible ? "absolute overflow-hidden" : "hidden"}
             style={rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined}
             onMouseDownCapture={() => group && focusGroup(group.id)}
-            data-drop="terminal"
+            data-drop={tab.target.type === "editor" ? undefined : "terminal"}
             data-tab-id={tab.id}
           >
-            <Terminal tab={tab} visible={visible} focused={visible && group?.id === focusedGroupId} />
+            {tab.target.type === "editor" ? (
+              <EditorPane tab={tab} visible={visible} focused={visible && group?.id === focusedGroupId} />
+            ) : (
+              <Terminal tab={tab} visible={visible} focused={visible && group?.id === focusedGroupId} />
+            )}
           </div>
         );
       })}

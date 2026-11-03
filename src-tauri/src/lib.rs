@@ -71,6 +71,8 @@ pub fn run() {
             files::fs_delete,
             files::fs_transfer,
             files::fs_cancel_transfer,
+            files::fs_read_text,
+            files::fs_write_text,
             files::fs_edit_remote,
             files::fs_stop_edit,
             credentials::credential_set,

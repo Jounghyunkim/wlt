@@ -37,7 +37,7 @@ function targetLabel(e: HistoryEntry): string {
     const { username, host, port } = e.target.config;
     return `${username}@${host}${port !== 22 ? `:${port}` : ""}`;
   }
-  const program = e.target.shell?.split(/\s+/)[0]?.split(/[\\/]/).at(-1)?.replace(/"/g, "");
+  const program = (e.target.type === "local" ? e.target.shell : undefined)?.split(/\s+/)[0]?.split(/[\\/]/).at(-1)?.replace(/"/g, "");
   return program || "기본 셸";
 }
 
