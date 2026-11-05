@@ -36,6 +36,8 @@ interface SessionState {
   removeSession: (id: string) => void;
   duplicateSession: (id: string) => void;
   touchSession: (id: string) => void;
+  /** Moves session `id` next to `targetId` (dragging in the sidebar), into the target's group. */
+  moveSession: (id: string, targetId: string, after: boolean) => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -73,10 +75,40 @@ export const useSessionStore = create<SessionState>()(
         set((s) => ({
           sessions: s.sessions.map((x) => (x.id === id ? { ...x, lastUsedAt: Date.now() } : x)),
         })),
+
+      moveSession: (id, targetId, after) =>
+        set((s) => {
+          const moving = s.sessions.find((x) => x.id === id);
+          const target = s.sessions.find((x) => x.id === targetId);
+          if (!moving || !target || id === targetId) return s;
+          const rest = s.sessions.filter((x) => x.id !== id);
+          const at = rest.indexOf(target) + (after ? 1 : 0);
+          rest.splice(at, 0, { ...moving, group: target.group });
+          return { sessions: rest };
+        }),
     }),
-    { name: "wlt.sessions", version: 1 },
+    {
+      name: "wlt.sessions",
+      version: 2,
+      // v1 showed sessions sorted by name; v2 shows the saved order, so start from that order.
+      migrate: (state, version) => {
+        const s = state as Pick<SessionState, "sessions">;
+        if (version < 2) s.sessions = [...s.sessions].sort((a, b) => a.name.localeCompare(b.name));
+        return s as SessionState;
+      },
+    },
   ),
 );
+
+/**
+ * Sessions as the sidebar shows them: named groups A→Z, then ungrouped ones;
+ * inside a group, the saved (user-dragged) order.
+ */
+export function groupSessions(sessions: SshSession[]): [group: string, items: SshSession[]][] {
+  const map = new Map<string, SshSession[]>();
+  for (const s of sessions) map.set(s.group || "", [...(map.get(s.group || "") ?? []), s]);
+  return [...map.entries()].sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+}
 
 /**
  * Moves plain-text passwords saved by older versions into the Windows

@@ -150,7 +150,12 @@ export function MainLayout() {
 
         <main className="flex min-w-0 flex-1">
           <Workspace
-            onNewTab={() => openLocal()}
+            shells={shells}
+            onNewTab={(pick) => {
+              if (pick.type === "shell") openLocal(pick.shell);
+              else if (pick.type === "ssh") connect(pick.session);
+              else setSessionDialog({ open: true, session: null });
+            }}
             onSplitRight={() => openLocal(undefined, "right")}
             emptyState={
               <EmptyState

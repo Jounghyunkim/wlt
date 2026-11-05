@@ -1,6 +1,6 @@
 /**
  * Pointer-based drag & drop for everything inside the app (tabs, explorer
- * items) plus files dragged in from Windows Explorer.
+ * items, sidebar sessions and shells) plus files dragged in from Windows Explorer.
  *
  * Why not HTML5 drag & drop: on Windows, Tauri only reports the paths of files
  * dropped from Explorer when its native drop handler is enabled — and that
@@ -16,7 +16,9 @@ import { create } from "zustand";
 export type DragPayload =
   | { kind: "tab"; tabId: string; label: string }
   | { kind: "fs"; targetKey: string; paths: string[]; label: string }
-  | { kind: "os"; paths: string[]; label: string };
+  | { kind: "os"; paths: string[]; label: string }
+  | { kind: "session"; sessionId: string; label: string }
+  | { kind: "shell"; command: string; label: string };
 
 interface DndState {
   payload: DragPayload | null;

@@ -55,6 +55,8 @@ export interface Settings {
    * for a saved SSH session. Missing = the home folder.
    */
   explorerStartDirs: Record<string, string>;
+  /** Order of the local shells (their command lines), set by dragging them in the sidebar. */
+  shellOrder: string[];
 }
 
 export const SIDEBAR_MIN_WIDTH = 180;
@@ -90,7 +92,17 @@ export const DEFAULT_SETTINGS: Settings = {
   historyMaxEntries: 100,
   explorerFollowTerminal: false,
   explorerStartDirs: {},
+  shellOrder: [],
 };
+
+/** `shells` in the user's order; shells not ordered yet (e.g. newly installed) keep their place at the end. */
+export function orderShells<T extends { command: string }>(shells: T[], order: string[]): T[] {
+  const rank = (s: T) => {
+    const i = order.indexOf(s.command);
+    return i === -1 ? order.length : i;
+  };
+  return shells.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map(({ s }) => s);
+}
 
 interface SettingsState extends Settings {
   update: (patch: Partial<Settings>) => void;

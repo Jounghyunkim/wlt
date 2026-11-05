@@ -22,6 +22,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -33,6 +42,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/tooltip";
+import type { ShellInfo } from "@/lib/backend";
 import { beginPointerDrag, registerDrop, useDnd } from "@/lib/dnd";
 import { editorRegistry } from "@/components/editor/EditorPane";
 import { fileIcon } from "@/components/explorer/fileIcon";
@@ -40,7 +50,8 @@ import type { FsEntry } from "@/lib/fs";
 import { THEMES, type ThemeName } from "@/lib/themes";
 import { terminalRegistry } from "@/lib/terminalRegistry";
 import { cn } from "@/lib/utils";
-import { useSettingsStore } from "@/store/settingsStore";
+import { groupSessions, useSessionStore, type SshSession } from "@/store/sessionStore";
+import { orderShells, useSettingsStore } from "@/store/settingsStore";
 import { useTabStore, type TabStatus } from "@/store/tabStore";
 
 const STATUS_COLOR: Record<TabStatus, string> = {
@@ -70,15 +81,22 @@ registerDrop("tabbar", (payload, el) => {
   if (payload.kind === "tab") useTabStore.getState().moveTab(payload.tabId, el.dataset.groupId!);
 });
 
+/** What the tab bar's "+" menu asked to open. */
+export type NewTabPick =
+  | { type: "ssh"; session: SshSession }
+  | { type: "shell"; shell: ShellInfo }
+  | { type: "new-session" };
+
 interface TabBarProps {
   groupId: string;
   /** Only the top-left group carries the sidebar toggle. */
   showSidebarToggle: boolean;
-  onNewTab: () => void;
+  shells: ShellInfo[];
+  onNewTab: (pick: NewTabPick) => void;
   onSplitRight: () => void;
 }
 
-export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: TabBarProps) {
+export function TabBar({ groupId, showSidebarToggle, shells, onNewTab, onSplitRight }: TabBarProps) {
   const group = useTabStore((s) => s.groups[groupId]);
   const allTabs = useTabStore((s) => s.tabs);
   const focused = useTabStore((s) => s.focusedGroupId === groupId);
@@ -211,11 +229,7 @@ export function TabBar({ groupId, showSidebarToggle, onNewTab, onSplitRight }: T
         })}
         <div className="relative flex h-full shrink-0 items-end">
           {dropBefore === "end" && <DropMarker />}
-          <Hint label="새 로컬 터미널 (Ctrl+Shift+T)">
-            <Button variant="ghost" size="icon" className="mb-0.5 ml-1 size-6 shrink-0 [&_svg]:size-3.5" onClick={onNewTab}>
-              <Plus />
-            </Button>
-          </Hint>
+          <NewTabMenu shells={shells} onPick={onNewTab} />
         </div>
       </div>
 
@@ -410,6 +424,49 @@ function TabMenu({ tabId, editorPath, locked, canCloseOthers, onRename, children
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/** "+" in the tab bar: pick an SSH session or a local shell, in the sidebar's order. */
+function NewTabMenu({ shells, onPick }: { shells: ShellInfo[]; onPick: (pick: NewTabPick) => void }) {
+  const sessions = useSessionStore((s) => s.sessions);
+  const shellOrder = useSettingsStore((s) => s.shellOrder);
+
+  return (
+    <DropdownMenu>
+      <Hint label="새 탭 (SSH 세션 · 로컬 셸 선택)">
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="mb-0.5 ml-1 size-6 shrink-0 [&_svg]:size-3.5">
+            <Plus />
+          </Button>
+        </DropdownMenuTrigger>
+      </Hint>
+      {/* No focus back to "+" on close: the new terminal should keep it. */}
+      <DropdownMenuContent align="start" className="max-w-80" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DropdownMenuLabel>SSH 세션</DropdownMenuLabel>
+        {groupSessions(sessions).map(([group, items]) =>
+          items.map((s) => (
+            <DropdownMenuItem key={s.id} onSelect={() => onPick({ type: "ssh", session: s })}>
+              <Server className="text-muted-foreground" />
+              <span className="truncate">{s.name}</span>
+              {group && <DropdownMenuShortcut className="max-w-28 truncate tracking-normal">{group}</DropdownMenuShortcut>}
+            </DropdownMenuItem>
+          )),
+        )}
+        <DropdownMenuItem onSelect={() => onPick({ type: "new-session" })}>
+          <Plus className="text-muted-foreground" />
+          <span className="text-muted-foreground">새 SSH 세션…</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>로컬 셸</DropdownMenuLabel>
+        {orderShells(shells, shellOrder).map((sh) => (
+          <DropdownMenuItem key={sh.command} onSelect={() => onPick({ type: "shell", shell: sh })}>
+            <SquareTerminal className="text-muted-foreground" />
+            <span className="truncate">{sh.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -18,14 +18,53 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Hint } from "@/components/ui/tooltip";
 import type { ShellInfo } from "@/lib/backend";
+import { beginPointerDrag, registerDrop, useDnd } from "@/lib/dnd";
 import { cn } from "@/lib/utils";
-import { useSessionStore, type SshSession } from "@/store/sessionStore";
+import { groupSessions, useSessionStore, type SshSession } from "@/store/sessionStore";
 import {
   DEFAULT_SETTINGS,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
+  orderShells,
   useSettingsStore,
 } from "@/store/settingsStore";
+
+/** Below the middle of a list row: the dragged item goes after it, otherwise before. */
+function dropsAfter(el: HTMLElement, y: number) {
+  const rect = el.getBoundingClientRect();
+  return y > rect.top + rect.height / 2;
+}
+
+registerDrop("session", (payload, el, _x, y) => {
+  if (payload.kind !== "session") return;
+  useSessionStore.getState().moveSession(payload.sessionId, el.dataset.dropId!, dropsAfter(el, y));
+});
+
+registerDrop("shell", (payload, el, _x, y) => {
+  if (payload.kind !== "shell" || payload.command === el.dataset.dropId) return;
+  // The list as shown, which is already in the user's order.
+  const shown = [...el.parentElement!.querySelectorAll<HTMLElement>('[data-drop="shell"]')].map((e) => e.dataset.dropId!);
+  const order = shown.filter((c) => c !== payload.command);
+  order.splice(order.indexOf(el.dataset.dropId!) + (dropsAfter(el, y) ? 1 : 0), 0, payload.command);
+  useSettingsStore.getState().update({ shellOrder: order });
+});
+
+/** While a `kind` item is dragged over row `id`: which side of it the drop would land on. */
+function useDropSide(kind: "session" | "shell", id: string): "before" | "after" | null {
+  return useDnd((s) => {
+    if (s.payload?.kind !== kind || s.over?.dataset.drop !== kind || s.over.dataset.dropId !== id) return null;
+    return dropsAfter(s.over, s.y) ? "after" : "before";
+  });
+}
+
+function DropLine({ side }: { side: "before" | "after" | null }) {
+  if (!side) return null;
+  return (
+    <span
+      className={cn("bg-primary pointer-events-none absolute inset-x-1 h-0.5 rounded-full", side === "before" ? "-top-px" : "-bottom-px")}
+    />
+  );
+}
 
 interface SidebarProps {
   shells: ShellInfo[];
@@ -57,49 +96,34 @@ function TerminalsView({ shells, onOpenShell, onConnect, onNewSession, onEditSes
   const sessions = useSessionStore((s) => s.sessions);
   const removeSession = useSessionStore((s) => s.removeSession);
   const duplicateSession = useSessionStore((s) => s.duplicateSession);
+  const shellOrder = useSettingsStore((s) => s.shellOrder);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = sessions
-      .filter((s) => !q || [s.name, s.host, s.username, s.group].some((v) => v.toLowerCase().includes(q)))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const map = new Map<string, SshSession[]>();
-    for (const s of filtered) {
-      const key = s.group || "";
-      map.set(key, [...(map.get(key) ?? []), s]);
-    }
-    // Ungrouped sessions last.
-    return [...map.entries()].sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+    return groupSessions(
+      sessions.filter((s) => !q || [s.name, s.host, s.username, s.group].some((v) => v.toLowerCase().includes(q))),
+    );
   }, [sessions, query]);
+  const orderedShells = useMemo(() => orderShells(shells, shellOrder), [shells, shellOrder]);
 
   return (
     <>
-      <ViewHeader title="터미널">
-        <Hint label="새 SSH 세션">
-          <Button variant="ghost" size="iconSm" onClick={onNewSession}>
-            <Plus />
-          </Button>
-        </Hint>
-      </ViewHeader>
+      <ViewHeader title="터미널" />
 
       <ScrollArea className="min-h-0 flex-1">
-        <SectionTitle>로컬 셸</SectionTitle>
-        <div className="px-2 pb-2">
-          {shells.map((sh) => (
-            <button
-              key={sh.command}
-              onClick={() => onOpenShell(sh)}
-              className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm"
-            >
-              <SquareTerminal className="text-muted-foreground size-4" />
-              <span className="truncate">{sh.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <SectionTitle>SSH 세션</SectionTitle>
+        <SectionTitle
+          action={
+            <Hint label="새 SSH 세션">
+              <Button variant="ghost" size="iconSm" className="-my-1.5 -mr-2" onClick={onNewSession}>
+                <Plus />
+              </Button>
+            </Hint>
+          }
+        >
+          SSH 세션
+        </SectionTitle>
 
         <div className="relative px-2 pb-2">
           <Search className="text-muted-foreground absolute top-2 left-4 size-3.5" />
@@ -154,8 +178,37 @@ function TerminalsView({ shells, onOpenShell, onConnect, onNewSession, onEditSes
             );
           })}
         </div>
+
+        <SectionTitle>로컬 셸</SectionTitle>
+        <div className="px-2 pb-4">
+          {orderedShells.map((sh) => (
+            <ShellItem key={sh.command} shell={sh} onOpen={() => onOpenShell(sh)} />
+          ))}
+        </div>
       </ScrollArea>
     </>
+  );
+}
+
+function ShellItem({ shell, onOpen }: { shell: ShellInfo; onOpen: () => void }) {
+  const dropSide = useDropSide("shell", shell.command);
+  const dragging = useDnd((s) => s.payload?.kind === "shell" && s.payload.command === shell.command);
+  return (
+    <button
+      data-drop="shell"
+      data-drop-id={shell.command}
+      title="클릭하여 열기 · 끌어서 순서 변경"
+      onClick={onOpen}
+      onPointerDown={(e) => beginPointerDrag(e, () => ({ kind: "shell", command: shell.command, label: shell.name }))}
+      className={cn(
+        "hover:bg-accent relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+        dragging && "opacity-50",
+      )}
+    >
+      <DropLine side={dropSide} />
+      <SquareTerminal className="text-muted-foreground size-4" />
+      <span className="truncate">{shell.name}</span>
+    </button>
   );
 }
 
@@ -212,10 +265,11 @@ function ResizeHandle({ side }: { side: "left" | "right" }) {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="text-muted-foreground px-4 pt-3 pb-1.5 text-[11px] font-semibold tracking-wider uppercase">
-      {children}
+    <div className="text-muted-foreground flex items-center px-4 pt-3 pb-1.5 text-[11px] font-semibold tracking-wider uppercase">
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {action}
     </div>
   );
 }
@@ -230,18 +284,25 @@ interface SessionItemProps {
 }
 
 function SessionItem({ session, indented, onConnect, onEdit, onDuplicate, onDelete }: SessionItemProps) {
+  const dropSide = useDropSide("session", session.id);
+  const dragging = useDnd((s) => s.payload?.kind === "session" && s.payload.sessionId === session.id);
   return (
     <div
       role="button"
       tabIndex={0}
-      title="더블클릭하여 연결"
+      title="더블클릭하여 연결 · 끌어서 순서 변경"
+      data-drop="session"
+      data-drop-id={session.id}
+      onPointerDown={(e) => beginPointerDrag(e, () => ({ kind: "session", sessionId: session.id, label: session.name }))}
       onDoubleClick={onConnect}
       onKeyDown={(e) => e.key === "Enter" && onConnect()}
       className={cn(
-        "group hover:bg-accent focus-visible:bg-accent flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 outline-none",
+        "group hover:bg-accent focus-visible:bg-accent relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 outline-none",
         indented && "pl-5",
+        dragging && "opacity-50",
       )}
     >
+      <DropLine side={dropSide} />
       <Server className="text-muted-foreground size-4 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{session.name}</div>

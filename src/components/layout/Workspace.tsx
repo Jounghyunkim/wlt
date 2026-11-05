@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Terminal } from "@/components/Terminal";
 import { EditorPane } from "@/components/editor/EditorPane";
+import type { ShellInfo } from "@/lib/backend";
 import { registerDrop, useDnd, type DragPayload } from "@/lib/dnd";
 import { terminalRegistry } from "@/lib/terminalRegistry";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import {
   type LayoutNode,
   type SplitSide,
 } from "@/store/tabStore";
-import { TabBar } from "./TabBar";
+import { TabBar, type NewTabPick } from "./TabBar";
 
 interface Rect {
   left: number;
@@ -25,8 +26,10 @@ type RegisterBody = (groupId: string, el: HTMLElement | null) => void;
 interface WorkspaceProps {
   /** Shown in the body of the (only) group while no tab is open. */
   emptyState: ReactNode;
-  /** Opens a local terminal in the focused group. */
-  onNewTab: () => void;
+  /** Local shells offered by the tab bar's "+" menu. */
+  shells: ShellInfo[];
+  /** Opens what was picked in a tab bar's "+" menu, in the focused group. */
+  onNewTab: (pick: NewTabPick) => void;
   /** Opens a local terminal in a new group to the right of the focused one. */
   onSplitRight: () => void;
 }
@@ -39,7 +42,7 @@ interface WorkspaceProps {
  * terminal lives in one flat, keyed layer and is absolutely positioned over the
  * measured body of the group it currently belongs to.
  */
-export function Workspace({ emptyState, onNewTab, onSplitRight }: WorkspaceProps) {
+export function Workspace({ emptyState, shells, onNewTab, onSplitRight }: WorkspaceProps) {
   const layout = useTabStore((s) => s.layout);
   const tabs = useTabStore((s) => s.tabs);
   const groups = useTabStore((s) => s.groups);
@@ -93,9 +96,10 @@ export function Workspace({ emptyState, onNewTab, onSplitRight }: WorkspaceProps
   const groupProps: GroupCallbacks = {
     registerBody,
     emptyState,
-    onNewTab: (groupId) => {
+    shells,
+    onNewTab: (groupId, pick) => {
       focusGroup(groupId);
-      onNewTab();
+      onNewTab(pick);
     },
     onSplitRight: (groupId) => {
       focusGroup(groupId);
@@ -154,7 +158,8 @@ function sameRects(a: Record<string, Rect>, b: Record<string, Rect>) {
 interface GroupCallbacks {
   registerBody: RegisterBody;
   emptyState: ReactNode;
-  onNewTab: (groupId: string) => void;
+  shells: ShellInfo[];
+  onNewTab: (groupId: string, pick: NewTabPick) => void;
   onSplitRight: (groupId: string) => void;
   topLeftGroupId: string;
 }
@@ -179,6 +184,7 @@ function GroupView({
   groupId,
   registerBody,
   emptyState,
+  shells,
   onNewTab,
   onSplitRight,
   topLeftGroupId,
@@ -192,7 +198,8 @@ function GroupView({
       <TabBar
         groupId={groupId}
         showSidebarToggle={groupId === topLeftGroupId}
-        onNewTab={() => onNewTab(groupId)}
+        shells={shells}
+        onNewTab={(pick) => onNewTab(groupId, pick)}
         onSplitRight={() => onSplitRight(groupId)}
       />
       {/* Terminals are overlaid on this element by <Workspace>. */}
@@ -302,7 +309,7 @@ registerDrop("group", (payload, el, x, y) => {
 
 /** Files dropped on a terminal are typed in as (quoted) paths, like Windows Terminal does. */
 registerDrop("terminal", (payload: DragPayload, el) => {
-  if (payload.kind === "tab") return;
+  if (payload.kind !== "fs" && payload.kind !== "os") return;
   const tab = useTabStore.getState().tabs.find((t) => t.id === el.dataset.tabId);
   const posix = tab?.target.type === "ssh";
   const quote = (p: string) =>
